@@ -3,23 +3,23 @@ EXPM = ['hindcast', 'observed']
 
 rule all:
     input:
-        'fig/fig1.png',
-        'fig/fig2.png',
-        'fig/fig3.png',
-        'fig/fig4.png',
-        'fig/figS1.png',
-        'fig/figS2.png',
-        'fig/figS3.png',
-        'fig/figS4.png'
+        '../results/fig/fig1.png',
+        '../results/fig/fig2.png',
+        '../results/fig/fig3.png',
+        '../results/fig/fig4.png',
+        '../results/fig/figS1.png',
+        '../results/fig/figS2.png',
+        '../results/fig/figS3.png',
+        '../results/fig/figS4.png'
 
 rule obs_input:
     input:
         files='config.yml',
-        script='../scripts/Python/prepare-observed-input-data.py'
+        script='scripts/Python/prepare-observed-input-data.py'
     output:
         'data/obs.parquet'
     params:
-        outputdir='data'
+        outputdir='../results'
     shell:
         """
         python {input.script} -i {input.files} -o {params.outputdir}
@@ -28,9 +28,9 @@ rule obs_input:
 rule mod_input:
     input:
         files='config.yml',
-        script='../scripts/Python/prepare-modelled-input-data.py'
+        script='scripts/Python/prepare-modelled-input-data.py'
     output:
-        directory('data/ensemble-forecast')
+        directory('../results/ensemble-forecast')
     shell:
         """
         mkdir -p {output}
@@ -40,9 +40,9 @@ rule mod_input:
 rule get_discharge_data:
     input:
         files='../data-raw/UKBN/UKBN_Station_List_vUKBN2.0_1.csv',
-        script='../scripts/R/download-discharge-data.R'
+        script='scripts/R/download-discharge-data.R'
     output:
-        directory('data/nrfa-discharge-summaries')
+        directory('../results/nrfa-discharge-summaries')
     shell:
         """
         Rscript {input.script} {input.files} {output}
@@ -50,19 +50,19 @@ rule get_discharge_data:
 
 rule nao_matching:
     input:
-        'data/obs.parquet',
-        'data/ensemble-forecast',
-        'data/nrfa-discharge-summaries',
+        '../results/obs.parquet',
+        '../results/ensemble-forecast',
+        '../results/nrfa-discharge-summaries',
         files='config.yml',
-        script='../scripts/R/perform-nao-matching.R'
+        script='scripts/R/perform-nao-matching.R'
     output:
-        'data/analysis/{aggr}/obs_study_period.parquet',
-        'data/analysis/{aggr}/ensemble_fcst.parquet',
-        'data/analysis/{aggr}/ensemble_mean_fcst.parquet',
-        'data/analysis/{aggr}/matched_ensemble.parquet',
-        'data/analysis/{aggr}/matched_ensemble_error.parquet'
+        '../results/analysis/{aggr}/obs_study_period.parquet',
+        '../results/analysis/{aggr}/ensemble_fcst.parquet',
+        '../results/analysis/{aggr}/ensemble_mean_fcst.parquet',
+        '../results/analysis/{aggr}/matched_ensemble.parquet',
+        '../results/analysis/{aggr}/matched_ensemble_error.parquet'
     params:
-        outputdir='data/analysis'
+        outputdir='../results/analysis'
     shell:
         """
         Rscript {input.script} {input.files} {wildcards.aggr} {params.outputdir}
@@ -70,16 +70,16 @@ rule nao_matching:
 
 rule build_catchment_dataset:
     input:
-        'data/nrfa-discharge-summaries',
-        'data/obs.parquet',
-        expand('data/analysis/{aggr}/matched_ensemble.parquet', aggr = AGGR),
-        expand('data/analysis/{aggr}/matched_ensemble_error.parquet', aggr = AGGR),
+        '../results/nrfa-discharge-summaries',
+        '../results/obs.parquet',
+        expand('../results/analysis/{aggr}/matched_ensemble.parquet', aggr = AGGR),
+        expand('../results/analysis/{aggr}/matched_ensemble_error.parquet', aggr = AGGR),
         files='config.yml',
-        script='../scripts/R/build-catchment-dataset.R'
+        script='scripts/R/build-catchment-../resultsset.R'
     output:
-        directory('data/analysis/{aggr}/input')
+        directory('../results/analysis/{aggr}/input')
     params:
-        outputdir='data'
+        outputdir='../results'
     shell:
         """
         Rscript {input.script} {input.files} {wildcards.aggr} {params.outputdir}
@@ -87,15 +87,15 @@ rule build_catchment_dataset:
 
 rule fit_models:
     input:
-        expand('data/analysis/{aggr}/input', aggr = AGGR),
+        expand('../results/analysis/{aggr}/input', aggr = AGGR),
         files='config.yml',
-        script='../scripts/R/fit-models.R'
+        script='scripts/R/fit-models.R'
     output:
-        directory('data/analysis/{expm}')
+        directory('../results/analysis/{expm}')
     wildcard_constraints:
         expm='|'.join([re.escape(x) for x in EXPM])
     params:
-        outputdir='data'
+        outputdir='../results'
     shell:
         """
         Rscript {input.script} {input.files} {wildcards.expm} {params.outputdir}
@@ -103,20 +103,20 @@ rule fit_models:
 
 rule make_plots:
     input:
-        expand('data/analysis/{expm}', expm = EXPM),
+        expand('../results/analysis/{expm}', expm = EXPM),
         files='config.yml',
-        script='../scripts/R/evaluate-models.R'
+        script='scripts/R/evaluate-models.R'
     output:
-        'fig/fig1.png',
-        'fig/fig2.png',
-        'fig/fig3.png',
-        'fig/fig4.png',
-        'fig/figS1.png',
-        'fig/figS2.png',
-        'fig/figS3.png',
-        'fig/figS4.png'
+        '../results/fig/fig1.png',
+        '../results/fig/fig2.png',
+        '../results/fig/fig3.png',
+        '../results/fig/fig4.png',
+        '../results/fig/figS1.png',
+        '../results/fig/figS2.png',
+        '../results/fig/figS3.png',
+        '../results/fig/figS4.png'
     params:
-        outputdir='fig'
+        outputdir='../results/fig'
     shell:
         """
         Rscript {input.script} {input.files} {params.outputdir}
