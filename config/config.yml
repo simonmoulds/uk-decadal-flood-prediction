@@ -1,0 +1,121 @@
+---
+src_dir: /Users/simonmoulds/projects/decadal-flood-prediction/src
+
+observed_data:
+  giss: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw/GISS
+  gpcc: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw/GPCC
+  hadcrut4: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw/HadCRUT4
+  hadslp2r: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw/HadSLP2r
+  hadisst: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw/HadISST
+  ncdc: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw/NCDC
+
+ensemble_data:
+  root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
+  cmip5:
+    subdirectory:
+      - esmvaltool_output/recipe_nao_cmip5_autogen_20220212_110715
+    models:
+      - CanCM4
+      - GFDL-CM2p1
+      - HadCM3
+      - MIROC5
+      - MPI-ESM-LR
+  cmip6:
+    subdirectory:
+      - esmvaltool_output/recipe_nao_cmip6_autogen_20220212_123032
+      - ncar_prec_data/recipe1
+    models:
+      - CanESM5
+      - CESM1-1-CAM5-CMIP5
+      - EC-Earth3
+      - HadGEM3-GC31-MM
+      - IPSL-CM6A-LR
+      - MIROC6
+      - MPI-ESM1-2-HR
+      - NorCPM1
+
+aux_data:
+  camels: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw/8344e4f3-d2ea-44f5-8afa-86d2987543a9
+  ukbn: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw/UKBN
+
+output_data:
+  root: /Users/simonmoulds/projects/decadal-flood-prediction/uk-decadal-flood-prediction1/data
+  hindcast: hindcast-analysis
+  observed: observed-analysis
+
+subset:
+  - name: full
+    best_n:
+    worst_n:
+    projects:
+    models:
+  - name: best_n
+    best_n: 20
+  - name: worst_n
+    worst_n: 20
+  - name: cmip5
+    projects: cmip5
+  - name: cmip6
+    projects: cmip6
+
+aggregation_period:
+  - name: yr2to9
+    lead_time: 2:9
+    study_period: 1960:2005
+    observed: TRUE
+    hindcast: TRUE
+    lag: FALSE
+  - name: yr2to9_lag
+    lead_time: 2:9
+    study_period: 1960:2005
+    observed: FALSE
+    hindcast: TRUE
+    lag: TRUE
+    n_lag: 4
+  - name: yr2
+    error_name: yr2to9_lag
+    lead_time: 2
+    study_period: 1960:2005
+    observed: FALSE
+    hindcast: TRUE
+    lag: FALSE
+
+modelling:
+  - name: hindcast
+    input_dataset: hindcast-analysis
+    predictand: Q_95
+    model_family: GA
+    aggregation_periods:
+      - yr2to9_lag
+    study_period: 1960:2005
+    formulas:
+      P: Q ~ european_precip
+      P_T: Q ~ european_precip + uk_temp
+      NAO: Q ~ nao
+      NAO_P: Q ~ nao + european_precip
+      NAO_P_T: Q ~ nao + european_precip + uk_temp
+      UKP: Q ~ uk_precip
+      UKP_T: Q ~ uk_precip + uk_temp
+      NAO_UKP: Q ~ nao + uk_precip
+      NAO_UKP_T: Q ~ nao + uk_precip + uk_temp
+    subsets:
+      - full
+      - best_n
+      - cmip5
+      - cmip6
+  - name: observed
+    input_dataset: observed-analysis
+    predictand: Q_95
+    model_family: GA
+    aggregation_periods:
+      - yr2to9
+    study_period: 1960:2005
+    formulas:
+      STATIONARY: Q ~ 1
+      TIME: Q ~ year
+      NAO: Q ~ nao
+      P: Q ~ european_precip
+      P_T: Q ~ european_precip + uk_temp
+      NAO_P_T: Q ~ nao + european_precip + uk_temp
+    subsets:
+      - observed
