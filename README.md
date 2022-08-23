@@ -3,7 +3,7 @@
 [![Snakemake](https://img.shields.io/badge/snakemake-≥6.3.0-brightgreen.svg)](https://snakemake.github.io)
 [![GitHub actions status](https://github.com/simonmoulds/uk-decadal-flood-prediction/workflows/Tests/badge.svg?branch=main)](https://github.com/simonmoulds/uk-decadal-flood-prediction/actions?query=branch%3Amain+workflow%3ATests)
 
-A Snakemake workflow for `making decadal flood predictions using CMIP5/6 decadal hindcasts`
+A Snakemake workflow for making decadal flood predictions using CMIP5/6 decadal hindcasts
 
 ## Usage
 
