@@ -14,6 +14,8 @@ ensemble_data:
   cmip5:
     subdirectory:
       - esmvaltool_output/recipe_nao_cmip5_autogen_20220212_110715
+    grid_subdirectory:
+      - esmvaltool_output/recipe_s20_grid_cmip5_autogen_20220622_133817
     models:
       - CanCM4
       - GFDL-CM2p1
@@ -24,6 +26,8 @@ ensemble_data:
     subdirectory:
       - esmvaltool_output/recipe_nao_cmip6_autogen_20220212_123032
       - ncar_prec_data/recipe1
+    grid_subdirectory:
+      - esmvaltool_output/recipe_s20_grid_cmip6_autogen_20220622_153338
     models:
       - CanESM5
       - CESM1-1-CAM5-CMIP5
@@ -72,6 +76,14 @@ aggregation_period:
     hindcast: TRUE
     lag: TRUE
     n_lag: 4
+  - name: yr2to5_lag
+    error_name: yr2to9_lag
+    lead_time: 2:5
+    study_period: 1960:2005
+    observed: FALSE
+    hindcast: TRUE
+    lag: TRUE
+    n_lag: 4
   - name: yr2
     error_name: yr2to9_lag
     lead_time: 2
@@ -87,35 +99,42 @@ modelling:
     model_family: GA
     aggregation_periods:
       - yr2to9_lag
+      - yr2to5_lag
+      - yr2
     study_period: 1960:2005
     formulas:
       P: Q ~ european_precip
-      P_T: Q ~ european_precip + uk_temp
+      # P_T: Q ~ european_precip + uk_temp
+      P_T: Q ~ european_precip + amv
       NAO: Q ~ nao
       NAO_P: Q ~ nao + european_precip
-      NAO_P_T: Q ~ nao + european_precip + uk_temp
-      UKP: Q ~ uk_precip
-      UKP_T: Q ~ uk_precip + uk_temp
-      NAO_UKP: Q ~ nao + uk_precip
-      NAO_UKP_T: Q ~ nao + uk_precip + uk_temp
+      NAO_P_T: Q ~ nao + european_precip + amv
+      # NAO_P_T: Q ~ nao + european_precip + uk_temp
+      # UKP: Q ~ uk_precip
+      # UKP_T: Q ~ uk_precip + uk_temp
+      # NAO_UKP: Q ~ nao + uk_precip
+      # NAO_UKP_T: Q ~ nao + uk_precip + uk_temp
     subsets:
       - full
       - best_n
-      - cmip5
-      - cmip6
+      # - cmip5
+      # - cmip6
   - name: observed
     input_dataset: observed-analysis
     predictand: Q_95
     model_family: GA
     aggregation_periods:
       - yr2to9
+      - yr2
     study_period: 1960:2005
     formulas:
       STATIONARY: Q ~ 1
       TIME: Q ~ year
       NAO: Q ~ nao
       P: Q ~ european_precip
-      P_T: Q ~ european_precip + uk_temp
-      NAO_P_T: Q ~ nao + european_precip + uk_temp
+      P_T: Q ~ european_precip + amv
+      NAO_P_T: Q ~ nao + european_precip + amv
+      # P_T: Q ~ european_precip + uk_temp
+      # NAO_P_T: Q ~ nao + european_precip + uk_temp
     subsets:
       - observed
