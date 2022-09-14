@@ -6,6 +6,8 @@ import shutil
 import pickle
 import pandas as pd
 import xarray as xr
+import pyarrow as pa
+import pyarrow.parquet as pq
 import datetime
 from pathlib import Path
 from ruamel.yaml import YAML
@@ -15,79 +17,73 @@ import torch
 from neuralhydrology.evaluation import metrics
 from neuralhydrology.nh_run import start_run, eval_run
 
+# # TESTING
+# config = 'config/config.yml'
+# nh_config = 'results/exp2/analysis/yr2/nh-input/basins.yml'
+# aggregation_period = 'yr2'
+# outputdir = 'results/exp2/analysis/hindcast/lstm'
+
 # Get command line arguments
-nh_config = sys.argv[1]
-# aggr_period = sys.argv[2]
-outputdir = sys.argv[2]
+config = sys.argv[1]
+nh_config = sys.argv[2]
+aggregation_period = sys.argv[3]
+outputdir = sys.argv[4]
 
-# Load configuration
+# Load neuralhydrology configuration
 yaml = YAML() #typ = 'safe')
-cfg = yaml.load(Path(nh_config))
+nh_cfg = yaml.load(Path(nh_config))
+cfg = yaml.load(Path(config))
+aggr_period_info = [d for d in cfg['aggregation_period'] if d['name'] == aggregation_period]
+if len(aggr_period_info) != 1:
+    ValueError
+else:
+    aggr_period_info = dict(aggr_period_info[0])
+lead_time = str(aggr_period_info['lead_time'])
+lead_time = [int(i) for i in lead_time.split(':')]
+if len(lead_time) > 1:
+    lead_time = [i for i in range(lead_time[0], lead_time[1] + 1)]
 
-# if torch.cuda.is_available():
-#     start_run(config_file = Path(nh_config))
-# else:
-#     # raise OSError("No GPU available!")
-#     start_run(config_file = Path(nh_config), gpu = -1)
+# Where to put predictions
+prediction_outputdir = os.path.join(outputdir, aggregation_period)
 
-# years = [y for y in range(1961, 2007)]
-years = [y for y in range(1961, 2007)]
-padding = 20
-seq_length = int(cfg['seq_length'])
-n_test = 1
-n_validate = 1
-n_chains = len(years) - seq_length - n_test - n_validate - padding
-training_start = "01/12/" + str(years[0])
-rundir = cfg['run_dir']
-forward_chain_rundir = os.path.join(rundir, 'forward_chain_run')
-if os.path.isdir(forward_chain_rundir):
-    shutil.rmtree(forward_chain_rundir)
-
-for i in range(n_chains):
-    cfg['train_start_date'] = training_start
-    cfg['train_end_date'] = "01/12/" + str(years[(i + seq_length + padding)])
-    cfg['validation_start_date'] = "01/12/" + str(years[(i + seq_length + padding + n_validate)])
-    cfg['validation_end_date'] = cfg['validation_start_date']
-    cfg['test_start_date'] = "01/12/" + str(years[(i + seq_length + padding + n_validate + n_test)])
-    cfg['test_end_date'] = cfg['test_start_date']
+# Set up while-loop
+leave_out = len(lead_time)
+train_year_start = 1961
+train_year_end = 1979
+test_year_start = train_year_end + leave_out
+max_test_year_start = 2006
+output_list = []
+while test_year_start <= max_test_year_start:
+    nh_cfg['train_start_date'] = "01/12/" + str(train_year_start)
+    nh_cfg['train_end_date'] = "01/12/" + str(train_year_end)
+    nh_cfg['validation_start_date'] = "01/12/" + str(test_year_start)
+    nh_cfg['validation_end_date'] = nh_cfg['validation_start_date']
+    nh_cfg['test_start_date'] = "01/12/" + str(test_year_start)
+    nh_cfg['test_end_date'] = nh_cfg['test_start_date']
 
     # Write unique experiment name
-    cfg['run_dir'] = forward_chain_rundir
-    cfg['experiment_name'] = 'chain_' + str(i)
+    nh_cfg['experiment_name'] = 'prediction_' + str(test_year_start)
 
-    # TODO write config to temporary yaml file
-    tmp_conf_filename = os.path.join('/tmp', 'chain_' + str(i) + '.yml')
+    # Write config to temporary yaml file
+    tmp_conf_filename = os.path.join('/tmp', 'config_' + str(test_year_start) + '.yml')
     with open(tmp_conf_filename, 'wb') as f:
-        yaml.dump(cfg, f)
+        yaml.dump(nh_cfg, f)
 
     if torch.cuda.is_available():
+        # Run on GPU
         start_run(config_file = Path(tmp_conf_filename))
     else:
-        # raise OSError("No GPU available!")
+        # Run on CPU instead
         start_run(config_file = Path(tmp_conf_filename), gpu = -1)
 
     # Neural Hydrology assigns a unique name to the output run
     # directory. We find this name by identifying the most recent
     # directory, then evaluate the model output.
-    base_run_dir = cfg['run_dir']
-    experiment_name = cfg['experiment_name']
+    base_run_dir = nh_cfg['run_dir']
+    experiment_name = nh_cfg['experiment_name']
     run_dirs = [os.path.join(base_run_dir, d) for d in os.listdir(base_run_dir) if  os.path.isdir(os.path.join(base_run_dir, d)) & d.startswith(experiment_name)]
-    # if len(run_dirs) > 0:
     run_dirs.sort(key = lambda x: os.path.getmtime(x))
     run_dir = run_dirs[-1]
-
-    # # Create a symbolic link
-    # src = os.path.join(os.getcwd(), run_dir)
-    # dst = os.path.join(base_run_dir, 'latest')
-    # try:
-    #     os.symlink(src, dst)
-    # except FileExistsError:
-    #     if os.path.islink(dst):
-    #         os.unlink(dst)
-    #     elif os.path.isdir(dst):
-    #         shutil.rmtree(dst)
-    #     os.symlink(src, dst)
-
     eval_run(Path(run_dir), period = 'test')
 
     # Unpack time series output
@@ -96,7 +92,7 @@ for i in range(n_chains):
     except FileExistsError:
         pass
 
-    n_epochs = cfg['epochs']
+    n_epochs = nh_cfg['epochs']
     epoch_dirname = 'model_epoch' + str(n_epochs).zfill(3)
     with open(os.path.join(run_dir, 'test', epoch_dirname, 'test_results.p'), 'rb') as fp:
         results = pickle.load(fp)
@@ -104,10 +100,26 @@ for i in range(n_chains):
     station_ids = list(results.keys())
     n_stations = len(station_ids)
     freq = '1AS-DEC'
-
     for j in range(n_stations):
         stn = station_ids[j]
         df = results[stn][freq]['xr'].to_dataframe()
         df.insert(0, "ID", stn)
-        csv_filename = 'chain_' + str(i) + '_' + str(stn) + '.csv'
-        df.to_csv(os.path.join(outputdir, csv_filename))
+        df['year'] = test_year_start
+        df = df.reset_index()
+        df = df.drop('time_step', axis = 1)
+        rowdata_df = pa.Table.from_pandas(df, preserve_index=False)
+        pq.write_to_dataset(
+            rowdata_df,
+            root_path = os.path.join(prediction_outputdir, 'prediction'),
+            partition_cols = ['ID', 'date']
+        )
+        # csv_filename = 'prediction_' + str(stn) + '_' + str(test_year_start) + '.csv'
+        # df.to_csv(os.path.join(prediction_outputdir, 'tmp', csv_filename))
+
+    # Tidy up tmp directory
+    os.remove(tmp_conf_filename)
+
+    # Update train/test years for next prediction year
+    train_year_end += 1
+    test_year_start += 1
+

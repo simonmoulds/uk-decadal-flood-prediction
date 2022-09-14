@@ -93,8 +93,12 @@ for i in tqdm(range(n_stations)):
     fcst_start_dates = pd.to_datetime([datetime.datetime(yr, 12, 1, 0, 0) for yr in fcst_start_years])
     xx.loc[:,'date'] = fcst_start_dates
     xx = xx.set_index('date')
-    xx = xx[['Q_95', 'nao', 'ea', 'amv', 'european_precip', 'uk_temp']]
+    xx = xx[['Q_max', 'Q_mean', 'Q_05', 'Q_50', 'Q_95', 'nao', 'ea', 'amv', 'european_precip', 'uk_temp']]
     xx = xx.rename(columns = {
+        'Q_max' : 'Qmax',
+        'Q_mean' : 'Qmean',
+        'Q_05' : 'Q05',
+        'Q_50' : 'Q50',
         'Q_95' : 'Q95',
         'nao' : 'NAO',
         'ea' : 'EA',
@@ -161,10 +165,10 @@ cfg['optimizer'] = "Adam"
 cfg['loss'] = "MSE"
 cfg['learning_rate'] = {0: 1e-2, 30: 5e-3, 40: 1e-3}
 cfg['batch_size'] = int(128) #int(256)
-cfg['epochs'] = int(100) #int(50) #int(500) #int(150) #int(75)
+cfg['epochs'] = int(50) #int(50) #int(500) #int(150) #int(75)
 cfg['clip_gradient_norm'] = int(1)
 cfg['predict_last_n'] = int(1)
-cfg['seq_length'] = int(2) #int(4) #int(8)
+cfg['seq_length'] = int(4) #int(4) #int(8)
 cfg['num_workers'] = int(8)
 cfg['log_interval'] = int(5)
 cfg['log_tensorboard'] = True

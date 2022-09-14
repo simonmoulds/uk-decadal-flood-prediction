@@ -1,0 +1,33 @@
+
+configfile: 'config/config.yml'
+
+# rule all:
+#     input:
+#         'results/intermediate/obs.parquet',
+#         'results/intermediate/ensemble-forecast'
+
+rule obs_input:
+    input:
+        script='workflow/scripts/external/Python/prepare-observed-input-data.py',
+        config='config/config.yml'
+    output:
+        'results/intermediate/obs.parquet'
+    params:
+        outputdir='results/intermediate'
+    shell:
+        """
+        python {input.script} -i {input.config} -o {params.outputdir}
+        """
+
+rule mod_input:
+    input:
+        script='workflow/scripts/external/Python/prepare-modelled-input-data.py',
+        config='config/config.yml'
+    output:
+        directory('results/intermediate/ensemble-forecast')
+    shell:
+        """
+        mkdir -p {output}
+        python {input.script} -i {input.config} -o {output}
+        """
+

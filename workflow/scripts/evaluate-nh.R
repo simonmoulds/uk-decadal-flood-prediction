@@ -73,7 +73,30 @@ if (dir.exists(plot_outputdir)) {
 }
 dir.create(plot_outputdir, recursive = TRUE)
 
-y <- read_csv('results/test.csv', show_col_types = FALSE) %>% rename(ID = gauge_id)
+## ## fs <- list.files('results', pattern = "test_[0-9]{4}.csv", full.names = TRUE)
+## ## y <- read_csv(fs, show_col_types = FALSE) %>%
+## y1 <- read_csv('results/test_xgboost.csv', show_col_types = FALSE) %>%
+##   rename(ID = basin) %>%
+##   mutate(year = year(date)) %>%
+##   arrange(ID, year) %>%
+##   mutate(model = "xgboost")
+
+## y2 <- read_csv('results/test_tabnet.csv', show_col_types = FALSE) %>%
+##   rename(ID = basin) %>%
+##   mutate(year = year(date)) %>%
+##   arrange(ID, year) %>%
+##   mutate(model = "tabnet")
+
+## y <- rbind(y1, y2) %>% mutate(model = factor(model, levels = c("xgboost", "tabnet"), labels = c("XGBoost", "TabNet")))
+
+y <- read_csv('results/test.csv', show_col_types = FALSE) %>%
+  rename(ID = basin) %>%
+  mutate(year = year(date)) %>%
+  arrange(ID, year) %>%
+  mutate(model = "tabnet") %>%
+  mutate(model = factor(model, levels = c("tabnet"), labels = c("TabNet")))
+
+## y <- read_csv('results/test.csv', show_col_types = FALSE) %>% rename(ID = basin) %>% mutate(year = year(date))
 ## y <- open_dataset(gamlss_inputdir) %>% collect()
 station_ids <- y$ID %>% unique()
 n_stations <- length(station_ids)
@@ -83,14 +106,17 @@ acc_list <- list()
 for (i in 1:n_stations) {
   stn <- station_ids[i]
   yy <- y %>% filter(ID %in% stn)
-  skill <- mean_square_error_skill_score(yy$obs, yy$exp)
-  msss_list[[i]] <- skill$msss
-  acc_list[[i]] <- skill$acc
+  yy_xgb <- yy %>% filter(model %in% "XGBoost")
+  yy_tab <- yy %>% filter(model %in% "TabNet")
+  skill_xgb <- mean_square_error_skill_score(yy_xgb$obs, yy_xgb$exp)
+  skill_tab <- mean_square_error_skill_score(yy_tab$obs, yy_tab$exp)
+  msss_list[[i]] <- tibble(id = stn, xgb = skill_xgb$msss, tab = skill_tab$msss)
+  acc_list[[i]] <- tibble(id = stn, xgb = skill_xgb$acc, tab = skill_tab$acc)
 
   p <- ggplot() +
     theme_bw() +
     geom_line(
-      aes(y=exp, x=year), colour = "magenta", data=yy
+      aes(y=exp, x=year, colour = model), data=yy, # colour = "magenta"
     ) +
     ## scale_fill_manual(values = cbbPalette) +
     ## scale_color_manual(values = cbbPalette) +
@@ -126,8 +152,13 @@ for (i in 1:n_stations) {
   ggsave(file.path(plot_outputdir, paste0("ts_plot_", stn, ".png")), width = 5, height = 5, units = "in")
 }
 
-names(msss_list) <- station_ids
-names(acc_list) <- station_ids
+## names(msss_list) <- station_ids
+## names(acc_list) <- station_ids
+msss <- do.call("rbind", msss_list)
+acc <- do.call("rbind", acc_list)
+
+## msss <- as.numeric(msss_list)
+## acc <- as.numeric(acc_list)
 
 ## msss_list <- list()
 ## for (i in 1:n_stations) {
