@@ -95,7 +95,7 @@ aggregation_period:
 modelling:
   - name: hindcast
     input_dataset: hindcast-analysis
-    predictand: Q_mean
+    predictand: Q_95
     model_family: GA
     aggregation_periods:
       - yr2to9_lag
@@ -121,7 +121,7 @@ modelling:
       # - cmip6
   - name: observed
     input_dataset: observed-analysis
-    predictand: Q_mean
+    predictand: Q_95
     model_family: GA
     aggregation_periods:
       - yr2to9

@@ -2,10 +2,13 @@
 
 import os
 import sys
+import re
 import shutil
 import pickle
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import xarray
 import datetime
 from pathlib import Path
@@ -233,13 +236,13 @@ lead_time = [int(i) for i in lead_time.split(':')]
 if len(lead_time) > 1:
     lead_time = [i for i in range(lead_time[0], lead_time[1] + 1)]
 
-# Where to put predictions
-prediction_outputdir = os.path.join(outputdir, aggregation_period)
-# TODO this won't be needed when running from Snakefile
-try:
-    os.makedirs(prediction_outputdir)
-except FileExistsError:
-    pass
+# # Where to put predictions
+# prediction_outputdir = os.path.join(outputdir, aggregation_period)
+# # TODO this won't be needed when running from Snakefile
+# try:
+#     os.makedirs(prediction_outputdir)
+# except FileExistsError:
+#     pass
 
 # Set up while-loop
 leave_out = len(lead_time)
@@ -268,7 +271,7 @@ while test_year_start <= max_test_year_start:
     rowdata_df = pa.Table.from_pandas(df, preserve_index=False)
     pq.write_to_dataset(
         rowdata_df,
-        root_path = os.path.join(prediction_outputdir, 'prediction'),
+        root_path = os.path.join(outputdir, 'prediction'),
         partition_cols = ['ID', 'date']
     )
     train_year_end += 1
