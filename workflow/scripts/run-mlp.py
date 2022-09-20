@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from xgboost import XGBRegressor
 from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.model_selection import KFold
 
 # import matplotlib.pyplot as plt
 # import torch
@@ -189,18 +190,26 @@ def run_tabular_regression(cfg: Config, model_type: str):
         scaler_dict['attribute_means'] = pd.Series(scaler_dict['attribute_means'])
         scaler_dict['attribute_stds'] = pd.Series(scaler_dict['attribute_stds'])
     test = DCPDataset(cfg, is_train = False, period = 'test', scaler = scaler_dict)
-    # Fit model
-    if model_type in ['xgboost']:
-        model = XGBRegressor(n_estimators = 500)
-        model.set_params(early_stopping_rounds = 5) #, eval_metric = [r2_score])
-        model.fit(train.X, train.y, verbose = False, eval_set = [(test.X, test.y)])
-    elif model_type in ['tabnet']:
-        model = TabNetRegressor()
-        model.fit(train.X, train.y, eval_set = [(test.X, test.y)])
-    else:
-        raise ValueError('`model_type` must be one of "xgboost", "tabnet"')
+    # Fit model using k-fold cross validation, taking average across predictions
+    kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
+    predictions_array = []
+    for train_index, test_index in kf.split(train.X):
+        X_train, X_valid = train.X[train_index], train.X[test_index]
+        y_train, y_valid = train.y[train_index], train.y[test_index]
 
-    predictions = model.predict(test.X)
+        if model_type in ['xgboost']:
+            model = XGBRegressor(n_estimators = 500)
+            model.set_params(early_stopping_rounds = 5) #, eval_metric = [r2_score])
+            model.fit(X_train, y_train, verbose = False, eval_set = [(X_valid, y_valid)])
+
+        elif model_type in ['tabnet']:
+            model = TabNetRegressor(verbose = 0, seed = 42)
+            model.fit(X_train, y_train, eval_set = [(X_valid, y_valid)])
+        else:
+            raise ValueError('`model_type` must be one of "xgboost", "tabnet"')
+        predictions_array.append(model.predict(test.X))
+
+    predictions = np.mean(predictions_array, axis = 0) #model.predict(test.X)
     output = test.index
     target_center = float(scaler_dict['xarray_feature_center'][target_variable].values)
     target_std = float(scaler_dict['xarray_feature_scale'][target_variable].values)

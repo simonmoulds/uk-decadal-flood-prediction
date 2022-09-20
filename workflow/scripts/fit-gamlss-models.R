@@ -11,25 +11,25 @@ library(optparse)
 
 options(dplyr.summarise.inform = FALSE)
 
-## FOR TESTING:
-config = read_yaml('config/config.yml')
-experiment = 'hindcast'
-aggregation_period = 'yr2'
-method = 'forward'
-outputroot = 'results/exp2'
-cwd = 'workflow/scripts/'
+## ## FOR TESTING:
+## config = read_yaml('config/config.yml')
+## experiment = 'hindcast'
+## aggregation_period = 'yr2'
+## method = 'forward'
+## outputroot = 'results/exp2'
+## cwd = 'workflow/scripts/'
 
-## if (sys.nframe() == 0L) {
-##   args = commandArgs(trailingOnly=TRUE)
-##   config = read_yaml(args[1])
-##   experiment = args[2]
-##   aggregation_period = args[3]
-##   method = args[4]
-##   outputroot = args[5]
-##   args = commandArgs()
-##   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
-##   cwd <- dirname(regmatches(args, m))
-## }
+if (sys.nframe() == 0L) {
+  args = commandArgs(trailingOnly=TRUE)
+  config = read_yaml(args[1])
+  experiment = args[2]
+  aggregation_period = args[3]
+  method = args[4]
+  outputroot = args[5]
+  args = commandArgs()
+  m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
+  cwd <- dirname(regmatches(args, m))
+}
 source(file.path(cwd, "external/R/utils.R"))
 config = parse_config(config)
 
@@ -38,7 +38,6 @@ experiment_conf = config$modelling[[experiment]]
 if (!aggregation_period %in% experiment_conf$aggregation_periods) {
   stop(paste0("Aggregation period ", aggregation_period, " not specified for experiment ", experiment))
 }
-## for (j in 1:length(experiment_conf$aggregation_periods)) {
 
 ## aggregation_period = experiment_conf$aggregation_periods[j]
 input_dir = file.path(outputroot, "analysis", aggregation_period, "input")
@@ -50,9 +49,13 @@ if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
 }
 ## Load input dataset
-ds =
-  open_dataset(input_dir) %>%
-  collect() %>%
+ds <- open_dataset(input_dir) %>% collect()
+
+## In `ds`, column `year` currently represents the year of initialization. Here we change `year` to represent the first month of the prediction window, consistent with that used by the the ML/AI routines.
+ds <- ds %>% mutate(year = year + lead_time - 1)
+
+## Arrange columns and remove those no longer needed
+ds <- ds %>%
   arrange(ID, year, period) %>%
   dplyr::select(-lead_time)
 
@@ -125,9 +128,9 @@ for (k in 1:length(station_ids)) {
       catchment_prediction <- fit_models_forward_chain(
         xx,
         experiment_conf,
-        training_period_start = 1960,
+        training_period_start = 1961,
         training_period_end = 1979,
-        test_period_end = 2005, #6,
+        test_period_end = 2006,
         lead_time
       )
 

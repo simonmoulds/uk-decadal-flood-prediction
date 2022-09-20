@@ -78,6 +78,7 @@ nrfa_meta = pd.read_parquet(os.path.join(outputroot, 'nrfa-metadata.parquet'))
 nrfa_meta = nrfa_meta.astype({'id' : int})
 nrfa_meta = nrfa_meta.set_index('id')
 
+# This generated from rule build_catchment_dataset
 x = pd.read_parquet(os.path.join(outputroot, 'analysis', aggr_period, 'input'))
 x = x.astype({'year' : int, 'lead_time' : int, 'ID' : int})
 station_ids = list(x['ID'].unique())

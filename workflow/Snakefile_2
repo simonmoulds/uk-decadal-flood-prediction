@@ -13,10 +13,10 @@ rule all:
         # expand('results/exp2/analysis/{aggr}/nh-input/attributes', aggr = AGGR),
         # expand('results/exp2/analysis/{aggr}/nh-input/basins.txt', aggr = AGGR),
         # expand('results/exp2/analysis/{aggr}/nh-input/basins.yml', aggr = AGGR),
-        'results/exp2/analysis/hindcast/gamlss/yr2'
         # 'results/exp2/analysis/hindcast/lstm/yr2',
-        # 'results/exp2/analysis/hindcast/xgboost/yr2',
-        # 'results/exp2/analysis/hindcast/tabnet/yr2'
+        'results/exp2/analysis/hindcast/xgboost/yr2',
+        'results/exp2/analysis/hindcast/tabnet/yr2',
+        'results/exp2/analysis/hindcast/gamlss/yr2'
         # 'results/analysis/yr2to9_lag/nh-output/time_series'
 
 rule select_stations:
@@ -128,72 +128,67 @@ rule fit_gamlss_models:
         """
         Rscript {input.script} {input.config} {params.experiment} {params.aggregation_period} {params.method} {params.outputdir}
         """
-    # shell:
-    #     """
-    #     Rscript {input.script} {input.config} {wildcards.expm} {params.method} {params.outputdir}
-    #     """
-    #
 
-# rule fit_lstm_models:
-#     input:
-#         expand('results/exp2/analysis/yr2/nh-input/time_series', aggr = AGGR),
-#         expand('results/exp2/analysis/yr2/nh-input/attributes', aggr = AGGR),
-#         expand('results/exp2/analysis/yr2/nh-input/basins.txt', aggr = AGGR),
-#         script='workflow/scripts/run-nh.py',
-#         config='config/config.yml',
-#         nh_config='results/exp2/analysis/yr2/nh-input/basins.yml',
-#     output:
-#         directory('results/exp2/analysis/hindcast/lstm/yr2')
-#     # wildcard_constraints:
-#     #     expm='|'.join([re.escape(x) for x in EXPM])
-#     params:
-#         aggregation_period='yr2'
-#     conda:
-#         'neuralhydrology'
-#     shell:
-#         """
-#         python {input.script} {input.config} {input.nh_config} {params.aggregation_period} {output}
-#         """
+rule fit_lstm_models:
+    input:
+        expand('results/exp2/analysis/yr2/nh-input/time_series', aggr = AGGR),
+        expand('results/exp2/analysis/yr2/nh-input/attributes', aggr = AGGR),
+        expand('results/exp2/analysis/yr2/nh-input/basins.txt', aggr = AGGR),
+        script='workflow/scripts/run-nh.py',
+        config='config/config.yml',
+        nh_config='results/exp2/analysis/yr2/nh-input/basins.yml',
+    output:
+        directory('results/exp2/analysis/hindcast/lstm/yr2')
+    # wildcard_constraints:
+    #     expm='|'.join([re.escape(x) for x in EXPM])
+    params:
+        aggregation_period='yr2'
+    conda:
+        'neuralhydrology'
+    shell:
+        """
+        python {input.script} {input.config} {input.nh_config} {params.aggregation_period} {output}
+        """
 
-# rule fit_xgboost_models:
-#     input:
-#         expand('results/exp2/analysis/yr2/nh-input/time_series', aggr = AGGR),
-#         expand('results/exp2/analysis/yr2/nh-input/attributes', aggr = AGGR),
-#         expand('results/exp2/analysis/yr2/nh-input/basins.txt', aggr = AGGR),
-#         script='workflow/scripts/run-mlp.py',
-#         config='config/config.yml',
-#         nh_config='results/exp2/analysis/yr2/nh-input/basins.yml',
-#     output:
-#         directory('results/exp2/analysis/hindcast/xgboost/yr2')
-#     params:
-#         aggregation_period='yr2',
-#         model_type='xgboost'
-#     conda:
-#         'neuralhydrology'
-#     shell:
-#         """
-#         python {input.script} {input.config} {input.nh_config} {params.aggregation_period} {params.model_type} {output}
-#         """
+rule fit_xgboost_models:
+    input:
+        expand('results/exp2/analysis/yr2/nh-input/time_series', aggr = AGGR),
+        expand('results/exp2/analysis/yr2/nh-input/attributes', aggr = AGGR),
+        expand('results/exp2/analysis/yr2/nh-input/basins.txt', aggr = AGGR),
+        script='workflow/scripts/run-mlp.py',
+        config='config/config.yml',
+        nh_config='results/exp2/analysis/yr2/nh-input/basins.yml',
+    output:
+        directory('results/exp2/analysis/hindcast/xgboost/yr2')
+    params:
+        aggregation_period='yr2',
+        model_type='xgboost'
+    conda:
+        'neuralhydrology'
+    shell:
+        """
+        python {input.script} {input.config} {input.nh_config} {params.aggregation_period} {params.model_type} {output}
+        """
 
-# rule fit_tabnet_models:
-#     input:
-#         expand('results/exp2/analysis/yr2/nh-input/time_series', aggr = AGGR),
-#         expand('results/exp2/analysis/yr2/nh-input/attributes', aggr = AGGR),
-#         expand('results/exp2/analysis/yr2/nh-input/basins.txt', aggr = AGGR),
-#         script='workflow/scripts/run-mlp.py',
-#         config='config/config.yml',
-#         nh_config='results/exp2/analysis/yr2/nh-input/basins.yml',
-#     output:
-#         directory('results/exp2/analysis/hindcast/tabnet/yr2')
-#     params:
-#         aggregation_period='yr2',
-#         model_type='tabnet'
-#     conda:
-#         'neuralhydrology'
-#     shell:
-#         """
-#         python {input.script} {input.config} {input.nh_config} {params.aggregation_period} {params.model_type} {output}
-#         """
+rule fit_tabnet_models:
+    input:
+        expand('results/exp2/analysis/yr2/nh-input/time_series', aggr = AGGR),
+        expand('results/exp2/analysis/yr2/nh-input/attributes', aggr = AGGR),
+        expand('results/exp2/analysis/yr2/nh-input/basins.txt', aggr = AGGR),
+        script='workflow/scripts/run-mlp.py',
+        config='config/config.yml',
+        nh_config='results/exp2/analysis/yr2/nh-input/basins.yml',
+    output:
+        directory('results/exp2/analysis/hindcast/tabnet/yr2')
+    params:
+        aggregation_period='yr2',
+        model_type='tabnet'
+    conda:
+        'neuralhydrology'
+    shell:
+        """
+        python {input.script} {input.config} {input.nh_config} {params.aggregation_period} {params.model_type} {output}
+        """
 
 # rule make_plots:
 #     input:

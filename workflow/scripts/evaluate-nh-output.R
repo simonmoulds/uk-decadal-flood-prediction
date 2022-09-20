@@ -44,37 +44,56 @@ tabnet_datadir <- file.path(outputroot, "tabnet", "yr2", "prediction")
 ## dir.create(plot_outputdir, showWarnings = FALSE)
 
 ## Join data frames and reshape
-## FIXME - consistent output format
-gamlss_output <- open_dataset(gamlss_datadir) %>% collect()
 ## FIXME - consistent column names
-lstm_output <- open_dataset(lstm_datadir) %>% collect() %>% rename(Q95_exp = Q95_sim)
+gamlss_output <- open_dataset(gamlss_datadir) %>%
+  collect() %>%
+  rename(Q95_exp = Q_95_exp, Q95_obs = Q_95_obs) %>%
+  dplyr::select(Q95_obs, Q95_exp, year, ID, date, model)
+lstm_output <- open_dataset(lstm_datadir) %>% collect() %>% rename(Q95_exp = Q95_sim) %>% mutate(model = "LSTM")
 xgboost_output <- open_dataset(xgboost_datadir) %>% collect() %>% mutate(model = "XGBoost")
 tabnet_output <- open_dataset(tabnet_datadir) %>% collect() %>% mutate(model = "TabNet")
 
-output <- rbind(xgboost_output, tabnet_output) %>% mutate(date = as.Date(date)) %>% arrange(ID, date, model)
-
 compute_skill_scores <- function(x, ...) {
-  station_ids = unique(x$ID) %>% sort()
-  skill_scores = list()
-  pb <- txtProgressBar(min = 0, max = length(station_ids), initial = 0)
-  for (i in 1:length(station_ids)) {
-    id <- station_ids[i]
-    xx <- x %>% filter(ID %in% id) %>% arrange(year)
-    skill <- mean_square_error_skill_score(xx$Q95_obs, xx$Q95_exp) %>% as_tibble()
-    skill <- skill %>% mutate(ID = id, .before = names(.)[1])
-    skill_scores[[i]] <- skill
-    setTxtProgressBar(pb, i)
+  models <- unique(x$model) %>% sort()
+  station_ids <- unique(x$ID) %>% sort()
+  skill_scores <- list()
+  for (i in 1:length(models)) {
+    xx <- x %>% filter(model %in% models[i])
+    model_skill_scores <- list()
+    pb <- txtProgressBar(min = 0, max = length(station_ids), initial = 0)
+    for (j in 1:length(station_ids)) {
+      id <- station_ids[j]
+      yy <- xx %>% filter(ID %in% id) %>% arrange(year)
+      skill <- mean_square_error_skill_score(yy$Q95_obs, yy$Q95_exp) %>% as_tibble()
+      skill <- skill %>% mutate(ID = id, .before = names(.)[1])
+      model_skill_scores[[j]] <- skill
+      setTxtProgressBar(pb, j)
+    }
+    close(pb)
+    model_skill_scores <- do.call("rbind", model_skill_scores) %>% mutate(model = models[i], .before = ID)
+    skill_scores[[i]] <- model_skill_scores
   }
-  close(pb)
   skill_scores <- do.call("rbind", skill_scores)
+  skill_scores
 }
 
 ## FIXME - important to have GAMLSS as single-site comparison
-## gamlss_skill_scores
-## lstm_skill_scores <- compute_skill_scores(lstm_output)
-xgboost_skill_scores <- compute_skill_scores(xgboost_output) %>% mutate(model = "XGBoost", .before = ID)
-tabnet_skill_scores <- compute_skill_scores(tabnet_output) %>% mutate(model = "TabNet", .before = ID)
-skill_scores <- rbind(xgboost_skill_scores, tabnet_skill_scores)
+gamlss_skill_scores <- compute_skill_scores(gamlss_output) %>% arrange(ID)
+gamlss_skill_scores_best <- gamlss_skill_scores %>% group_by(ID) %>% filter(acc == max(acc))
+gamlss_output <- gamlss_skill_scores_best %>% dplyr::select(model, ID) %>% left_join(gamlss_output)
+
+output <- rbind(gamlss_output, lstm_output, xgboost_output, tabnet_output) %>%
+  mutate(date = as.Date(date)) %>%
+  arrange(ID, date, model)
+
+lstm_skill_scores <- compute_skill_scores(lstm_output)
+xgboost_skill_scores <- compute_skill_scores(xgboost_output)
+tabnet_skill_scores <- compute_skill_scores(tabnet_output)
+skill_scores <- rbind(xgboost_skill_scores, tabnet_skill_scores, lstm_skill_scores, gamlss_skill_scores_best)
+skill_scores <- skill_scores %>% mutate(model = ifelse(str_detect(model, "GAMLSS_(.*)_(full|best_n)"), "GAMLSS", model))
+## Only include stations where all models are available
+common_ids <- skill_scores %>% group_by(ID) %>% summarize(n = n()) %>% filter(n == 4) %>% `$`(ID)
+skill_scores <- skill_scores %>% filter(ID %in% common_ids)
 
 ## Text size for plot labels
 axis_title_size_large = 9
@@ -182,12 +201,12 @@ plotfun2 <- function(x, id, ...) {
 
 ## Top skill scores
 skill_scores %>% arrange(desc(msss))
-p1 <- plotfun2(output, 18003)
-p2 <- plotfun2(output, 46005)
-p3 <- plotfun2(output, 79005)
-p4 <- plotfun2(output, 73005)
-p5 <- plotfun2(output, 76007)
-p6 <- plotfun2(output, 80001)
+p1 <- plotfun2(output, 84022)
+p2 <- plotfun2(output, 76003)
+p3 <- plotfun2(output, 79004)
+p4 <- plotfun2(output, 73010)
+p5 <- plotfun2(output, 84018)
+p6 <- plotfun2(output, 84019)
 
 plotfun3 <- function(x, ...) {
   ## Spatial plot (ACC)
@@ -260,10 +279,14 @@ plotfun3 <- function(x, ...) {
   p
 }
 
-skill_scores_i = skill_scores %>% filter(model %in% "TabNet") %>% mutate(skill = acc)
+skill_scores_i = skill_scores %>% filter(model %in% "GAMLSS") %>% mutate(skill = acc)
 p1 <- plotfun3(skill_scores_i)
-skill_scores_i = skill_scores %>% filter(model %in% "XGBoost") %>% mutate(skill = acc)
+skill_scores_i = skill_scores %>% filter(model %in% "TabNet") %>% mutate(skill = acc)
 p2 <- plotfun3(skill_scores_i)
+skill_scores_i = skill_scores %>% filter(model %in% "XGBoost") %>% mutate(skill = acc)
+p3 <- plotfun3(skill_scores_i)
+skill_scores_i = skill_scores %>% filter(model %in% "LSTM") %>% mutate(skill = acc)
+p4 <- plotfun3(skill_scores_i)
 
 ## ## For spatial plots:
 ## library(sf)
