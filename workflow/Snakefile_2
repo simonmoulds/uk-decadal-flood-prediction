@@ -17,6 +17,8 @@ ANALYSIS_DIRECTORY = os.path.join(EXP2_DIRECTORY, 'analysis')
 
 rule all:
     input:
+        OBSERVED_DATA_FILE,
+        ENSEMBLE_FORECAST_DATA_DIRECTORY
         # os.path.join(config['output_data'], 'exp2', 'stations.txt'),
         # os.path.join(config['output_data'], 'exp2', 'nrfa-discharge-summaries'),
         # os.path.join(config['output_data'], 'exp2', 'nrfa-metadata.parquet')
@@ -25,111 +27,111 @@ rule all:
         # expand(ANALYSIS_DIRECTORY + '/{aggr}/ensemble_mean_fcst.parquet', aggr = AGGR),
         # expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet', aggr = AGGR),
         # expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet', aggr = AGGR)
-        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series', aggr = AGGR),
-        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes', aggr = AGGR),
-        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt', aggr = AGGR),
-        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml', aggr = AGGR)
+        # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series', aggr = AGGR),
+        # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes', aggr = AGGR),
+        # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt', aggr = AGGR),
+        # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml', aggr = AGGR)
         # expand('results/exp2/fig/{aggr}/fig1.png', aggr = AGGR),
         # expand('results/exp2/fig/{aggr}/fig2.png', aggr = AGGR),
         # expand('results/exp2/fig/{aggr}/fig3.png', aggr = AGGR),
         # expand('results/exp2/fig/{aggr}/fig4.png', aggr = AGGR)
 
-rule select_stations:
-    input:
-        script='workflow/scripts/select-stations-exp2.R',
-        config=CONFIG
-    output:
-        STATIONS_FILE
-    params:
-        outfile=STATIONS_FILE
-    conda:
-        'decadal-flood-prediction'
-    shell:
-        """
-        Rscript {input.script} {input.config} {params.outfile}
-        """
+# rule select_stations:
+#     input:
+#         script='workflow/scripts/select-stations-exp2.R',
+#         config=CONFIG
+#     output:
+#         STATIONS_FILE
+#     params:
+#         outfile=STATIONS_FILE
+#     conda:
+#         'decadal-flood-prediction'
+#     shell:
+#         """
+#         Rscript {input.script} {input.config} {params.outfile}
+#         """
 
-rule get_discharge_data:
-    input:
-        stations=STATIONS_FILE,
-        script='workflow/scripts/download-discharge-data.R'
-    output:
-        directory(NRFA_DISCHARGE_DIRECTORY),
-        NRFA_METADATA_FILE
-    params:
-        outputdir=EXP2_DIRECTORY
-    conda:
-        'decadal-flood-prediction'
-    shell:
-        """
-        Rscript {input.script} {input.stations} {params.outputdir}
-        """
+# rule get_discharge_data:
+#     input:
+#         stations=STATIONS_FILE,
+#         script='workflow/scripts/download-discharge-data.R'
+#     output:
+#         directory(NRFA_DISCHARGE_DIRECTORY),
+#         NRFA_METADATA_FILE
+#     params:
+#         outputdir=EXP2_DIRECTORY
+#     conda:
+#         'decadal-flood-prediction'
+#     shell:
+#         """
+#         Rscript {input.script} {input.stations} {params.outputdir}
+#         """
 
-rule nao_matching:
-    input:
-        NRFA_DISCHARGE_DIRECTORY,
-        script='workflow/scripts/perform-nao-matching.R',
-        config='config/config.yml',
-        obs=OBSERVED_DATA_FILE,
-        fcst=ENSEMBLE_FORECAST_DATA_DIRECTORY
-    output:
-        ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
-        ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet',
-        ANALYSIS_DIRECTORY + '/{aggr}/ensemble_mean_fcst.parquet',
-        ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet',
-        ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet'
-    params:
-        outputdir=ANALYSIS_DIRECTORY
-    conda:
-        'decadal-flood-prediction'
-    shell:
-        """
-        Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
-        """
+# rule nao_matching:
+#     input:
+#         NRFA_DISCHARGE_DIRECTORY,
+#         script='workflow/scripts/perform-nao-matching.R',
+#         config='config/config.yml',
+#         obs=OBSERVED_DATA_FILE,
+#         fcst=ENSEMBLE_FORECAST_DATA_DIRECTORY
+#     output:
+#         ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
+#         ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet',
+#         ANALYSIS_DIRECTORY + '/{aggr}/ensemble_mean_fcst.parquet',
+#         ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet',
+#         ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet'
+#     params:
+#         outputdir=ANALYSIS_DIRECTORY
+#     conda:
+#         'decadal-flood-prediction'
+#     shell:
+#         """
+#         Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
+#         """
 
-rule build_catchment_dataset:
-    input:
-        NRFA_DISCHARGE_DIRECTORY,
-        expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet', aggr = AGGR),
-        expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet', aggr = AGGR),
-        script='workflow/scripts/build-catchment-dataset.R',
-        config='config/config.yml',
-        obs=OBSERVED_DATA_FILE
-    output:
-        directory(ANALYSIS_DIRECTORY + '/{aggr}/input')
-    params:
-        outputdir=EXP2_DIRECTORY
-    conda:
-        'decadal-flood-prediction'
-    shell:
-        """
-        Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
-        """
+# rule build_catchment_dataset:
+#     input:
+#         NRFA_DISCHARGE_DIRECTORY,
+#         expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet', aggr = AGGR),
+#         expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet', aggr = AGGR),
+#         script='workflow/scripts/build-catchment-dataset.R',
+#         config='config/config.yml',
+#         obs=OBSERVED_DATA_FILE
+#     output:
+#         directory(ANALYSIS_DIRECTORY + '/{aggr}/input')
+#     params:
+#         outputdir=EXP2_DIRECTORY
+#     conda:
+#         'decadal-flood-prediction'
+#     shell:
+#         """
+#         Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
+#         """
 
-rule prepare_nh_input:
-    input:
-        expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR),
-        # expand('results/exp2/analysis/{aggr}/input', aggr = AGGR),
-        script='workflow/scripts/prepare-nh-input.py',
-        config='config/config.yml'
-    output:
-        directory(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series'),
-        directory(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes'),
-        ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt',
-        ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml'
-        # directory('results/exp2/analysis/{aggr}/nh-input/time_series'),
-        # directory('results/exp2/analysis/{aggr}/nh-input/attributes'),
-        # 'results/exp2/analysis/{aggr}/nh-input/basins.txt',
-        # 'results/exp2/analysis/{aggr}/nh-input/basins.yml'
-    params:
-        outputdir=EXP2_DIRECTORY
-        # outputdir='results/exp2'
-    conda:
-        'decadal-flood-prediction'
-    shell:
-        """
-        python {input.script} {input.config} {wildcards.aggr} {params.outputdir}
-        """
+# rule prepare_nh_input:
+#     input:
+#         expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR),
+#         # expand('results/exp2/analysis/{aggr}/input', aggr = AGGR),
+#         script='workflow/scripts/prepare-nh-input.py',
+#         config='config/config.yml'
+#     output:
+#         directory(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series'),
+#         directory(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes'),
+#         ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt',
+#         ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml'
+#         # directory('results/exp2/analysis/{aggr}/nh-input/time_series'),
+#         # directory('results/exp2/analysis/{aggr}/nh-input/attributes'),
+#         # 'results/exp2/analysis/{aggr}/nh-input/basins.txt',
+#         # 'results/exp2/analysis/{aggr}/nh-input/basins.yml'
+#     params:
+#         outputdir=EXP2_DIRECTORY
+#         # outputdir='results/exp2'
+#     conda:
+#         'decadal-flood-prediction'
+#     shell:
+#         """
+#         python {input.script} {input.config} {wildcards.aggr} {params.outputdir}
+#         """
 
 # rule fit_gamlss_models:
 #     input:
