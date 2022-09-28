@@ -1,6 +1,6 @@
 import os
 
-CONFIG = 'config/config.yml'
+CONFIG = 'config/config-arc.yml'
 
 configfile: CONFIG
 # configfile: 'config/config.yml'
