@@ -23,7 +23,7 @@ rule obs_input:
     resources:
         time = "00:30:00",
         mem = 4000,
-        partition = short
+        partition = "short"
     shell:
         """
         python {input.script} -i {input.config} -o {params.outputdir}
@@ -42,7 +42,7 @@ rule mod_input:
     resources:
         time = "03:00:00",
         mem = 4000,
-        partition = short
+        partition = "short"
     shell:
         """
         python {input.script} -i {input.config} -o {params.outputdir}
