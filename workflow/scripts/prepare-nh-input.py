@@ -50,7 +50,11 @@ except FileExistsError:
 
 yaml = YAML() #typ = 'safe')
 cfg = yaml.load(Path(config))
-camels_datadir = os.path.join(cfg['aux_data']['camels'], 'data')
+camels_datadir = os.path.join(
+    cfg['aux_data']['root'],
+    cfg['aux_data']['camels']['subdirectory'],
+    'data'
+)
 destdir = os.path.join(outputdir, 'attributes')
 
 camels_attr_fs = ['CAMELS_GB_climatic_attributes.csv',

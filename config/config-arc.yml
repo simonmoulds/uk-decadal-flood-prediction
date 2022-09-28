@@ -1,8 +1,8 @@
 ---
-output_data: 'results'
+output_data: /data/ouce-drift/cenv0857/uk_decadal_flood_prediction_results
 
 observed_data:
-  root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
+  root: /data/ouce-drift/cenv0857/observed_data
   giss:
     subdirectory: GISS
   gpcc:
@@ -17,7 +17,7 @@ observed_data:
     subdirectory: NCDC
 
 ensemble_data:
-  root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
+  root: /data/ouce-drift/cenv0857
   cmip5:
     subdirectory:
       - esmvaltool_output/recipe_nao_cmip5_autogen_20220212_110715
@@ -46,7 +46,7 @@ ensemble_data:
       - NorCPM1
 
 aux_data:
-  root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
+  root: /data/ouce-drift/cenv0857
   camels:
     subdirectory: 8344e4f3-d2ea-44f5-8afa-86d2987543a9
   ukbn:

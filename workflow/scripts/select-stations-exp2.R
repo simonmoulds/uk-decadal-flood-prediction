@@ -13,6 +13,7 @@ options(dplyr.summarise.inform = FALSE)
 ## Extract configuration info
 if (sys.nframe() == 0L) {
   args = commandArgs(trailingOnly=TRUE)
+  print(args[1])
   config <- read_yaml(args[1])
   outputfile <- args[2]
   args = commandArgs()
@@ -42,7 +43,13 @@ metadata =
   )
 
 ## Next identify stations included in the CAMELS-GB dataset
-camels <- st_read(file.path(config$aux_data$camels, "data", "CAMELS_GB_catchment_boundaries.shp"))
+camels <- st_read(
+  file.path(
+    config$aux_data$root,
+    config$aux_data$camels$subdirectory,
+    "data", "CAMELS_GB_catchment_boundaries.shp"
+  )
+)
 camels_stations <- camels$ID_STRING %>% unique() %>% as.integer()
 
 ## ## Now identify stations included in the CAMELS-GB dataset

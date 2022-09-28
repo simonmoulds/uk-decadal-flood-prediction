@@ -1,19 +1,23 @@
+import os
 
-configfile: 'config/config.yml'
+CONFIG = 'config/config.yml'
 
-# rule all:
-#     input:
-#         'results/intermediate/obs.parquet',
-#         'results/intermediate/ensemble-forecast'
+configfile: CONFIG
+# configfile: 'config/config.yml'
+
+RESULTS_DIRECTORY = config['output_data']
+INTERMEDIATE_DIRECTORY = os.path.join(RESULTS_DIRECTORY, 'intermediate')
+OBSERVED_DATA_FILE = os.path.join(INTERMEDIATE_DIRECTORY, 'obs.parquet')
+ENSEMBLE_FORECAST_DATA_DIRECTORY = os.path.join(INTERMEDIATE_DIRECTORY, 'ensemble-forecast')
 
 rule obs_input:
     input:
         script='workflow/scripts/external/Python/prepare-observed-input-data.py',
-        config='config/config.yml'
+        config=CONFIG
     output:
-        'results/intermediate/obs.parquet'
+        OBSERVED_DATA_FILE
     params:
-        outputdir='results/intermediate'
+        outputdir=INTERMEDIATE_DIRECTORY
     shell:
         """
         python {input.script} -i {input.config} -o {params.outputdir}
@@ -22,12 +26,13 @@ rule obs_input:
 rule mod_input:
     input:
         script='workflow/scripts/external/Python/prepare-modelled-input-data.py',
-        config='config/config.yml'
+        config=CONFIG
     output:
-        directory('results/intermediate/ensemble-forecast')
+        directory(ENSEMBLE_FORECAST_DATA_DIRECTORY)
+    params:
+        outputdir=INTERMEDIATE_DIRECTORY
     shell:
         """
-        mkdir -p {output}
-        python {input.script} -i {input.config} -o {output}
+        python {input.script} -i {input.config} -o {params.outputdir}
         """
 
