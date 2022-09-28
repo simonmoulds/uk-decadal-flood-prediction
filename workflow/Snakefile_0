@@ -18,6 +18,8 @@ rule obs_input:
         OBSERVED_DATA_FILE
     params:
         outputdir=INTERMEDIATE_DIRECTORY
+    conda:
+        'decadal-flood-prediction'
     shell:
         """
         python {input.script} -i {input.config} -o {params.outputdir}
@@ -31,6 +33,8 @@ rule mod_input:
         directory(ENSEMBLE_FORECAST_DATA_DIRECTORY)
     params:
         outputdir=INTERMEDIATE_DIRECTORY
+    conda:
+        'decadal-flood-prediction'
     shell:
         """
         python {input.script} -i {input.config} -o {params.outputdir}
