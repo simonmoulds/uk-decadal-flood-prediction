@@ -18,7 +18,7 @@ if (sys.nframe() == 0L) {
   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
   cwd <- dirname(regmatches(args, m))
 }
-source(file.path(cwd, "external/R/utils.R"))
+source(file.path(cwd, "utils.R"))
 config = parse_config_io(config)
 
 metadata = catalogue()

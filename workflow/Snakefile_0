@@ -12,7 +12,7 @@ ENSEMBLE_FORECAST_DATA_DIRECTORY = os.path.join(INTERMEDIATE_DIRECTORY, 'ensembl
 
 rule obs_input:
     input:
-        script='workflow/scripts/external/Python/prepare-observed-input-data.py',
+        script='workflow/scripts/prepare-observed-input-data.py',
         config=CONFIG
     output:
         OBSERVED_DATA_FILE
@@ -25,7 +25,7 @@ rule obs_input:
 
 rule mod_input:
     input:
-        script='workflow/scripts/external/Python/prepare-modelled-input-data.py',
+        script='workflow/scripts/prepare-modelled-input-data.py',
         config=CONFIG
     output:
         directory(ENSEMBLE_FORECAST_DATA_DIRECTORY)

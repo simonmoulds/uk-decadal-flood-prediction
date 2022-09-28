@@ -52,7 +52,7 @@ rule select_stations:
 rule get_discharge_data:
     input:
         stations=STATIONS_FILE,
-        script='workflow/scripts/external/R/download-discharge-data.R'
+        script='workflow/scripts/download-discharge-data.R'
     output:
         directory(NRFA_DISCHARGE_DIRECTORY),
         NRFA_METADATA_FILE
@@ -68,7 +68,7 @@ rule get_discharge_data:
 rule nao_matching:
     input:
         NRFA_DISCHARGE_DIRECTORY,
-        script='workflow/scripts/external/R/perform-nao-matching.R',
+        script='workflow/scripts/perform-nao-matching.R',
         config='config/config.yml',
         obs=OBSERVED_DATA_FILE,
         fcst=ENSEMBLE_FORECAST_DATA_DIRECTORY
@@ -92,7 +92,7 @@ rule build_catchment_dataset:
         NRFA_DISCHARGE_DIRECTORY,
         expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet', aggr = AGGR),
         expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet', aggr = AGGR),
-        script='workflow/scripts/external/R/build-catchment-dataset.R',
+        script='workflow/scripts/build-catchment-dataset.R',
         config='config/config.yml',
         obs=OBSERVED_DATA_FILE
     output:
