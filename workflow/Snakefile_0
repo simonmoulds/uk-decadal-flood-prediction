@@ -42,7 +42,7 @@ rule mod_input:
         'decadal-flood-prediction'
     resources:
         time = "03:00:00",
-        mem = 4000,
+        mem_mb = 4000,
         partition = "short"
     shell:
         """
