@@ -1,9 +1,7 @@
 import os
 
-CONFIG = 'config/config-arc.yml'
-
+CONFIG = 'config/config.yml'
 configfile: CONFIG
-# configfile: 'config/config.yml'
 
 RESULTS_DIRECTORY = config['output_data']
 INTERMEDIATE_DIRECTORY = os.path.join(RESULTS_DIRECTORY, 'intermediate')

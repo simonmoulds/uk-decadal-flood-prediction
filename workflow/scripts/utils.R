@@ -16,11 +16,11 @@ check_file_exists = function(fn) {
 
 parse_config_observed = function(config) {
   items = config$observed
-  giss = file.path(items$root, items$giss$subdirectory) %>% check_file_exists()
-  gpcc = file.path(items$root, items$gpcc$subdirectory) %>% check_file_exists()
-  hadcrut4 = file.path(items$root, items$hadcrut4$subdirectory) %>% check_file_exists()
-  hadslp2r = file.path(items$root, items$hadslp2r$subdirectory) %>% check_file_exists()
-  ncdc = file.path(items$root, items$ncdc$subdirectory) %>% check_file_exists()
+  giss = file.path(config$input_data_root, items$giss$subdirectory) %>% check_file_exists()
+  gpcc = file.path(config$input_data_root, items$gpcc$subdirectory) %>% check_file_exists()
+  hadcrut4 = file.path(config$input_data_root, items$hadcrut4$subdirectory) %>% check_file_exists()
+  hadslp2r = file.path(config$input_data_root, items$hadslp2r$subdirectory) %>% check_file_exists()
+  ncdc = file.path(config$input_data_root, items$ncdc$subdirectory) %>% check_file_exists()
   list(giss = giss, gpcc = gpcc, hadcrut4 = hadcrut4, hadslp2r = hadslp2r, ncdc = ncdc)
 }
 

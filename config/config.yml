@@ -1,20 +1,21 @@
 ---
-output_data: 'results'
+input_data_root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
+output_data: results
 
 observed_data:
   root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
   giss:
-    subdirectory: GISS
+    subdirectory: observed_data/GISS
   gpcc:
-    subdirectory: GPCC
+    subdirectory: observed_data/GPCC
   hadcrut4:
-    subdirectory: HadCRUT4
+    subdirectory: observed_data/HadCRUT4
   hadslp2r:
-    subdirectory: HadSLP2r
+    subdirectory: observed_data/HadSLP2r
   hadisst:
-    subdirectory: HadISST
+    subdirectory: observed_data/HadISST
   ncdc:
-    subdirectory: NCDC
+    subdirectory: observed_data/NCDC
 
 ensemble_data:
   root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw

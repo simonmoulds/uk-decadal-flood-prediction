@@ -119,7 +119,7 @@ def _ensemble_preprocessor(config, outputdir):
     # Collect ESMValTool output files
     # output_dir = config['output_data']['root']
     # output_dir = "data"
-    rootdir = config['ensemble_data']['root']
+    rootdir = config['input_data_root']
     recipe_output_dirs = \
         config['ensemble_data']['cmip5']['subdirectory'] \
         + config['ensemble_data']['cmip6']['subdirectory']
@@ -564,7 +564,7 @@ def _observed_preprocessor(config, outputdir):
     with open(config, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
-    observed_root = config['observed_data']['root']
+    observed_root = config['input_data_root']
     hadslp2r_filename = os.path.join(
         observed_root,
         config['observed_data']['hadslp2r']['subdirectory'],

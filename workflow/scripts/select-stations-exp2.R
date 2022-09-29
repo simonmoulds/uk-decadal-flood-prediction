@@ -45,7 +45,7 @@ metadata =
 ## Next identify stations included in the CAMELS-GB dataset
 camels <- st_read(
   file.path(
-    config$aux_data$root,
+    config$input_data_root,
     config$aux_data$camels$subdirectory,
     "data", "CAMELS_GB_catchment_boundaries.shp"
   )

@@ -51,7 +51,7 @@ except FileExistsError:
 yaml = YAML() #typ = 'safe')
 cfg = yaml.load(Path(config))
 camels_datadir = os.path.join(
-    cfg['aux_data']['root'],
+    cfg['input_data_root'],
     cfg['aux_data']['camels']['subdirectory'],
     'data'
 )

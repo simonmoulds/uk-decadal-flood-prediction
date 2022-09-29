@@ -1,7 +1,6 @@
 import os
 
-CONFIG = 'config/config-arc.yml'
-
+CONFIG = 'config/config.yml'
 configfile: CONFIG
 
 include: 'Snakefile_0'
