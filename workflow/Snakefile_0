@@ -20,7 +20,7 @@ rule obs_input:
         'decadal-flood-prediction'
     resources:
         time = "00:30:00",
-        mem = 4000,
+        mem_mb = 4000,
         partition = "short"
     # FIXME https://github.com/snakemake/snakemake/issues/1811
     # script:
