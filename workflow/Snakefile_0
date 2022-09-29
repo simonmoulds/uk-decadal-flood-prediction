@@ -22,10 +22,12 @@ rule obs_input:
         time = "00:30:00",
         mem = 4000,
         partition = "short"
-    shell:
-        """
-        python {input.script} -i {input.config} -o {params.outputdir}
-        """
+    script:
+        "scripts/prepare-modelled-input-data.py"
+    # shell:
+    #     """
+    #     python {input.script} -i {input.config} -o {params.outputdir}
+    #     """
 
 rule mod_input:
     input:
