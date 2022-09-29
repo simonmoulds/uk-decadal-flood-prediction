@@ -5,10 +5,11 @@ import click
 from utils import _observed_preprocessor
 
 @click.command()
-@click.option('-i', '--inputdir', default='.', help='Input YAML configuration file')
+@click.option('-i', '--inputdir', default='.', help='Input directory')
 @click.option('-o', '--outputdir', default='.', help='Output directory')
-def main(inputdir, outputdir):
-    _observed_preprocessor(inputdir, outputdir)
+@click.option('--config', default='config.yml', help='YAML configuration file')
+def main(inputdir, outputdir, config):
+    _observed_preprocessor(inputdir, outputdir, config)
 
 if __name__ == '__main__':
     main()

@@ -27,7 +27,7 @@ rule obs_input:
     #     "scripts/prepare-modelled-input-data.py"
     shell:
         """
-        python {input.script} -i {input.config} -o {params.outputdir}
+        python {input.script} -i {config[input_data_root]} -o {params.outputdir} --config {input.config}
         """
 
 rule mod_input:
@@ -46,6 +46,5 @@ rule mod_input:
         partition = "short"
     shell:
         """
-        python {input.script} -i {input.config} -o {params.outputdir}
+        python {input.script} -i {config[input_data_root]} -o {params.outputdir} --config {input.config}
         """
-

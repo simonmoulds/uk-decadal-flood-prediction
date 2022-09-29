@@ -109,7 +109,7 @@ def _get_variable_name(ds):
         return 'uk_temp'
 
 
-def _ensemble_preprocessor(config, outputdir):
+def _ensemble_preprocessor(inputdir, outputdir, config):
     # Preprocessor for ensemble dataset which is
     # created by the two ESMValTOol jobs specified
     # in `02_run-esmvaltool-job.sh`
@@ -119,7 +119,8 @@ def _ensemble_preprocessor(config, outputdir):
     # Collect ESMValTool output files
     # output_dir = config['output_data']['root']
     # output_dir = "data"
-    rootdir = config['input_data_root']
+    # rootdir = config['input_data_root']
+    rootdir = inputdir
     recipe_output_dirs = \
         config['ensemble_data']['cmip5']['subdirectory'] \
         + config['ensemble_data']['cmip6']['subdirectory']
@@ -561,7 +562,7 @@ def _extract_index(ds, index_name, column_name = None):
     return df
 
 # def _observed_preprocessor(config, outputdir):
-def _observed_preprocessor(inputdir, outputdir):
+def _observed_preprocessor(inputdir, outputdir, config):
     with open(config, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
@@ -570,40 +571,34 @@ def _observed_preprocessor(inputdir, outputdir):
     print(observed_root)
     hadslp2r_filename = os.path.join(
         observed_root,
-        'observed_data/HadSLP2r/slp.mnmean.real.nc'
-        # config['observed_data']['hadslp2r']['subdirectory'],
-        # 'slp.mnmean.real.nc'
+        config['observed_data']['hadslp2r']['subdirectory'],
+        'slp.mnmean.real.nc'
     )
     gpcc_filename = os.path.join(
         observed_root,
-        'observed_data/GPCC/precip.mon.total.2.5x2.5.v2018.nc'
-        # config['observed_data']['gpcc']['subdirectory'],
-        # 'precip.mon.total.2.5x2.5.v2018.nc'
+        config['observed_data']['gpcc']['subdirectory'],
+        'precip.mon.total.2.5x2.5.v2018.nc'
     )
     hadcrut4_filename = os.path.join(
         observed_root,
-        'observed_data/HadCRUT4/HadCRUT.4.6.0.0.median.nc'
-        # config['observed_data']['hadcrut4']['subdirectory'],
-        # 'HadCRUT.4.6.0.0.median.nc'
+        config['observed_data']['hadcrut4']['subdirectory'],
+        'HadCRUT.4.6.0.0.median.nc'
     )
     # hadsst_filename = "data-raw/HadISST/HadISST_sst.nc"
     hadsst_filename = os.path.join(
         observed_root,
-        'observed_data/HadISST/HadISST_sst.nc'
-        # config['observed_data']['hadisst']['subdirectory'],
-        # 'HadISST_sst.nc'
+        config['observed_data']['hadisst']['subdirectory'],
+        'HadISST_sst.nc'
     )
     giss_filename = os.path.join(
         observed_root,
-        'observed_data/GISS/gistemp1200_GHCNv4_ERSSTv5.nc'
-        # config['observed_data']['giss']['subdirectory'],
-        # 'gistemp1200_GHCNv4_ERSSTv5.nc'
+        config['observed_data']['giss']['subdirectory'],
+        'gistemp1200_GHCNv4_ERSSTv5.nc'
     )
     ncdc_filename = os.path.join(
         observed_root,
-        'observed_data/NCDC/ncdc-merged-sfc-mntp.dat'
-        # config['observed_data']['ncdc']['subdirectory'],
-        # 'ncdc-merged-sfc-mntp.dat'
+        config['observed_data']['ncdc']['subdirectory'],
+        'ncdc-merged-sfc-mntp.dat'
     )
     # output_dir = config['output_data']['root']
 
