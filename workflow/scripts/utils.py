@@ -565,6 +565,7 @@ def _observed_preprocessor(config, outputdir):
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     observed_root = config['input_data_root']
+    print(observed_root)
     hadslp2r_filename = os.path.join(
         observed_root,
         config['observed_data']['hadslp2r']['subdirectory'],
