@@ -52,7 +52,7 @@ rule select_stations:
         partition = "short"
     shell:
         """
-        Rscript {input.script} {input.config} {params.outfile}
+        Rscript {input.script} {config[input_data_root]} {params.outfile} {input.config}
         """
 
 rule get_discharge_data:

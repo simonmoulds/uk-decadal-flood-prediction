@@ -14,32 +14,32 @@ check_file_exists = function(fn) {
   }
 }
 
-parse_config_observed = function(config) {
+parse_config_observed <- function(config, input_data_root) {
   items = config$observed
-  giss = file.path(config$input_data_root, items$giss$subdirectory) %>% check_file_exists()
-  gpcc = file.path(config$input_data_root, items$gpcc$subdirectory) %>% check_file_exists()
-  hadcrut4 = file.path(config$input_data_root, items$hadcrut4$subdirectory) %>% check_file_exists()
-  hadslp2r = file.path(config$input_data_root, items$hadslp2r$subdirectory) %>% check_file_exists()
-  ncdc = file.path(config$input_data_root, items$ncdc$subdirectory) %>% check_file_exists()
+  giss = file.path(input_data_root, items$giss$subdirectory) %>% check_file_exists()
+  gpcc = file.path(input_data_root, items$gpcc$subdirectory) %>% check_file_exists()
+  hadcrut4 = file.path(input_data_root, items$hadcrut4$subdirectory) %>% check_file_exists()
+  hadslp2r = file.path(input_data_root, items$hadslp2r$subdirectory) %>% check_file_exists()
+  ncdc = file.path(input_data_root, items$ncdc$subdirectory) %>% check_file_exists()
   list(giss = giss, gpcc = gpcc, hadcrut4 = hadcrut4, hadslp2r = hadslp2r, ncdc = ncdc)
 }
 
-parse_config_ensemble = function(config) {
+parse_config_ensemble <- function(config, input_data_root) {
   ## TODO
   return(config$ensemble)
 }
 
-parse_config_aux = function(config) {
+parse_config_aux <- function(config, input_data_root) {
   ## TODO
   return(config$aux)
 }
 
-parse_config_output = function(config) {
+parse_config_output <- function(config) {
   ## TODO
   return(config$output)
 }
 
-parse_config_subset = function(config) {
+parse_config_subset <- function(config) {
   if (!"subset" %in% names(config))
     return(NULL)
 
@@ -166,10 +166,10 @@ parse_config_modelling <- function(config) {
   return(config_modelling)
 }
 
-parse_config <- function(config) {
-  observed_section <- parse_config_observed(config)
-  ensemble_section <- parse_config_ensemble(config)
-  aux_data_section <- parse_config_aux(config)
+parse_config <- function(config, input_data_root) {
+  observed_section <- parse_config_observed(config, input_data_root)
+  ensemble_section <- parse_config_ensemble(config, input_data_root)
+  aux_data_section <- parse_config_aux(config, input_data_root)
   output_section <- parse_config_output(config)
   subset_section <- parse_config_subset(config)
   aggregation_period_section <- parse_config_aggregation_period(config)
@@ -184,10 +184,10 @@ parse_config <- function(config) {
        modelling = modelling_section)
 }
 
-parse_config_io <- function(config) {
-  observed_section = parse_config_observed(config)
-  ensemble_section = parse_config_ensemble(config)
-  aux_data_section = parse_config_aux(config)
+parse_config_io <- function(config, input_data_root) {
+  observed_section <- parse_config_observed(config, input_data_root)
+  ensemble_section <- parse_config_ensemble(config, input_data_root)
+  aux_data_section <- parse_config_aux(config, input_data_root)
   output_section = parse_config_output(config)
   ## subset_section = parse_config_subset(config)
   aggregation_period_section = parse_config_aggregation_period(config)
