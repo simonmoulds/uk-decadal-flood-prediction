@@ -47,7 +47,7 @@ rule select_stations:
     params:
         outfile=STATIONS_FILE
     conda:
-        'decadal-flood-prediction'
+        'decadal-flood-prediction-r'
     resources:
         time = "00:30:00",
         mem_mb = 4000,
@@ -67,7 +67,7 @@ rule get_discharge_data:
     params:
         outputdir=EXP2_DIRECTORY
     conda:
-        'decadal-flood-prediction'
+        'decadal-flood-prediction-r'
     resources:
         time = "00:30:00",
         mem_mb = 4000,
