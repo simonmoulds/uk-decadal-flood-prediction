@@ -26,6 +26,7 @@ rule obs_input:
     #     "scripts/prepare-modelled-input-data.py"
     shell:
         """
+        echo `which python`
         python {input.script} -i {input.config} -o {params.outputdir}
         """
 
