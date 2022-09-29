@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import click
 
 from utils import _ensemble_preprocessor
