@@ -560,42 +560,50 @@ def _extract_index(ds, index_name, column_name = None):
     df.reset_index()
     return df
 
-def _observed_preprocessor(config, outputdir):
+# def _observed_preprocessor(config, outputdir):
+def _observed_preprocessor(inputdir, outputdir):
     with open(config, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
-    observed_root = config['input_data_root']
+    # observed_root = config['input_data_root']
+    observed_root = inputdir
     print(observed_root)
     hadslp2r_filename = os.path.join(
         observed_root,
-        config['observed_data']['hadslp2r']['subdirectory'],
-        'slp.mnmean.real.nc'
+        'observed_data/HadSLP2r/slp.mnmean.real.nc'
+        # config['observed_data']['hadslp2r']['subdirectory'],
+        # 'slp.mnmean.real.nc'
     )
     gpcc_filename = os.path.join(
         observed_root,
-        config['observed_data']['gpcc']['subdirectory'],
-        'precip.mon.total.2.5x2.5.v2018.nc'
+        'observed_data/GPCC/precip.mon.total.2.5x2.5.v2018.nc'
+        # config['observed_data']['gpcc']['subdirectory'],
+        # 'precip.mon.total.2.5x2.5.v2018.nc'
     )
     hadcrut4_filename = os.path.join(
         observed_root,
-        config['observed_data']['hadcrut4']['subdirectory'],
-        'HadCRUT.4.6.0.0.median.nc'
+        'observed_data/HadCRUT4/HadCRUT.4.6.0.0.median.nc'
+        # config['observed_data']['hadcrut4']['subdirectory'],
+        # 'HadCRUT.4.6.0.0.median.nc'
     )
     # hadsst_filename = "data-raw/HadISST/HadISST_sst.nc"
     hadsst_filename = os.path.join(
         observed_root,
-        config['observed_data']['hadisst']['subdirectory'],
-        'HadISST_sst.nc'
+        'observed_data/HadISST/HadISST_sst.nc'
+        # config['observed_data']['hadisst']['subdirectory'],
+        # 'HadISST_sst.nc'
     )
     giss_filename = os.path.join(
         observed_root,
-        config['observed_data']['giss']['subdirectory'],
-        'gistemp1200_GHCNv4_ERSSTv5.nc'
+        'observed_data/GISS/gistemp1200_GHCNv4_ERSSTv5.nc'
+        # config['observed_data']['giss']['subdirectory'],
+        # 'gistemp1200_GHCNv4_ERSSTv5.nc'
     )
     ncdc_filename = os.path.join(
         observed_root,
-        config['observed_data']['ncdc']['subdirectory'],
-        'ncdc-merged-sfc-mntp.dat'
+        'observed_data/NCDC/ncdc-merged-sfc-mntp.dat'
+        # config['observed_data']['ncdc']['subdirectory'],
+        # 'ncdc-merged-sfc-mntp.dat'
     )
     # output_dir = config['output_data']['root']
 
