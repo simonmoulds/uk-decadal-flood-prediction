@@ -20,15 +20,15 @@ rule all:
         # ENSEMBLE_FORECAST_DATA_DIRECTORY
         STATIONS_FILE,
         NRFA_DISCHARGE_DIRECTORY,
-        NRFA_METADATA_FILE
+        NRFA_METADATA_FILE,
         # os.path.join(config['output_data'], 'exp2', 'stations.txt'),
         # os.path.join(config['output_data'], 'exp2', 'nrfa-discharge-summaries'),
         # os.path.join(config['output_data'], 'exp2', 'nrfa-metadata.parquet')
-        # expand(ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet', aggr = AGGR),
-        # expand(ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet', aggr = AGGR),
-        # expand(ANALYSIS_DIRECTORY + '/{aggr}/ensemble_mean_fcst.parquet', aggr = AGGR),
-        # expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet', aggr = AGGR),
-        # expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet', aggr = AGGR)
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/ensemble_mean_fcst.parquet', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet', aggr = AGGR)
         # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series', aggr = AGGR),
         # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes', aggr = AGGR),
         # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt', aggr = AGGR),

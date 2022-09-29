@@ -42,7 +42,8 @@ if (sys.nframe() == 0L) {
 }
 ## TODO put these functions in an R package
 source(file.path(cwd, "utils.R"))
-config = parse_config_io(config)
+## config = parse_config_io(config)
+config[["aggregation_period"]] = parse_config_aggregation_period(config)
 
 ## Variable against which to perform the mode-matching approach
 ## TODO put this in configuration
