@@ -73,27 +73,29 @@ rule get_discharge_data:
         Rscript {input.script} {input.stations} {params.outputdir}
         """
 
-# rule nao_matching:
-#     input:
-#         NRFA_DISCHARGE_DIRECTORY,
-#         script='workflow/scripts/perform-nao-matching.R',
-#         config='config/config.yml',
-#         obs=OBSERVED_DATA_FILE,
-#         fcst=ENSEMBLE_FORECAST_DATA_DIRECTORY
-#     output:
-#         ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
-#         ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet',
-#         ANALYSIS_DIRECTORY + '/{aggr}/ensemble_mean_fcst.parquet',
-#         ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet',
-#         ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet'
-#     params:
-#         outputdir=ANALYSIS_DIRECTORY
-#     conda:
-#         'decadal-flood-prediction'
-#     shell:
-#         """
-#         Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
-#         """
+rule nao_matching:
+    input:
+        NRFA_DISCHARGE_DIRECTORY,
+        script='workflow/scripts/perform-nao-matching.R',
+        config='config/config.yml',
+        obs=OBSERVED_DATA_FILE,
+        fcst=ENSEMBLE_FORECAST_DATA_DIRECTORY
+    output:
+        ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
+        ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet',
+        ANALYSIS_DIRECTORY + '/{aggr}/ensemble_mean_fcst.parquet',
+        ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet',
+        ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet'
+    params:
+        outputdir=ANALYSIS_DIRECTORY
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
+    shell:
+        """
+        Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
+        """
 
 # rule build_catchment_dataset:
 #     input:
