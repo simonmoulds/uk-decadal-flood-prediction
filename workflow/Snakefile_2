@@ -30,10 +30,11 @@ rule all:
         # expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet', aggr = AGGR),
         # expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet', aggr = AGGR)
         expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR)
-        # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series', aggr = AGGR),
-        # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes', aggr = AGGR),
-        # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt', aggr = AGGR),
-        # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml', aggr = AGGR)
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml', aggr = AGGR)
+        expand(ANALYSIS_DIRECTORY + '/hindcast/gamlss/{aggr}', aggr = AGGR)
         # expand('results/exp2/fig/{aggr}/fig1.png', aggr = AGGR),
         # expand('results/exp2/fig/{aggr}/fig2.png', aggr = AGGR),
         # expand('results/exp2/fig/{aggr}/fig3.png', aggr = AGGR),
@@ -115,52 +116,52 @@ rule build_catchment_dataset:
         Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
         """
 
-# rule prepare_nh_input:
-#     input:
-#         expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR),
-#         # expand('results/exp2/analysis/{aggr}/input', aggr = AGGR),
-#         script='workflow/scripts/prepare-nh-input.py',
-#         config='config/config.yml'
-#     output:
-#         directory(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series'),
-#         directory(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes'),
-#         ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt',
-#         ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml'
-#         # directory('results/exp2/analysis/{aggr}/nh-input/time_series'),
-#         # directory('results/exp2/analysis/{aggr}/nh-input/attributes'),
-#         # 'results/exp2/analysis/{aggr}/nh-input/basins.txt',
-#         # 'results/exp2/analysis/{aggr}/nh-input/basins.yml'
-#     params:
-#         outputdir=EXP2_DIRECTORY
-#         # outputdir='results/exp2'
-#     conda:
-#         'decadal-flood-prediction'
-#     shell:
-#         """
-#         python {input.script} {input.config} {wildcards.aggr} {params.outputdir}
-#         """
+rule prepare_nh_input:
+    input:
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR),
+        # expand('results/exp2/analysis/{aggr}/input', aggr = AGGR),
+        script='workflow/scripts/prepare-nh-input.py',
+        config='config/config.yml'
+    output:
+        directory(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series'),
+        directory(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes'),
+        ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt',
+        ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml'
+        # directory('results/exp2/analysis/{aggr}/nh-input/time_series'),
+        # directory('results/exp2/analysis/{aggr}/nh-input/attributes'),
+        # 'results/exp2/analysis/{aggr}/nh-input/basins.txt',
+        # 'results/exp2/analysis/{aggr}/nh-input/basins.yml'
+    params:
+        outputdir=EXP2_DIRECTORY
+        # outputdir='results/exp2'
+    conda:
+        'decadal-flood-prediction'
+    shell:
+        """
+        python {input.script} {input.config} {wildcards.aggr} {params.outputdir}
+        """
 
-# rule fit_gamlss_models:
-#     input:
-#         expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR),
-#         # expand('results/exp2/analysis/{aggr}/input', aggr = AGGR),
-#         script='workflow/scripts/fit-gamlss-models.R',
-#         config='config/config.yml'
-#     output:
-#         directory(ANALYSIS_DIRECTORY + '/hindcast/gamlss/{aggr}')
-#         # directory('results/exp2/analysis/hindcast/gamlss/{aggr}')
-#     params:
-#         experiment='hindcast',
-#         # aggregation_period='yr2',
-#         method='forward',
-#         outputdir=EXP2_DIRECTORY
-#         # outputdir='results/exp2'
-#     conda:
-#         'decadal-flood-prediction'
-#     shell:
-#         """
-#         Rscript {input.script} {input.config} {params.experiment} {wildcards.aggr} {params.method} {params.outputdir}
-#         """
+rule fit_gamlss_models:
+    input:
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR),
+        # expand('results/exp2/analysis/{aggr}/input', aggr = AGGR),
+        script='workflow/scripts/fit-gamlss-models.R',
+        config='config/config.yml'
+    output:
+        directory(ANALYSIS_DIRECTORY + '/hindcast/gamlss/{aggr}')
+        # directory('results/exp2/analysis/hindcast/gamlss/{aggr}')
+    params:
+        experiment='hindcast',
+        # aggregation_period='yr2',
+        method='forward',
+        outputdir=EXP2_DIRECTORY
+        # outputdir='results/exp2'
+    # conda:
+    #     'decadal-flood-prediction'
+    shell:
+        """
+        Rscript {input.script} {input.config} {params.experiment} {wildcards.aggr} {params.method} {params.outputdir}
+        """
 
 # # rule fit_lstm_models:
 # #     input:

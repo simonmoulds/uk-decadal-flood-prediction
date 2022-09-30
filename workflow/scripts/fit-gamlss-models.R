@@ -30,8 +30,12 @@ if (sys.nframe() == 0L) {
   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
   cwd <- dirname(regmatches(args, m))
 }
-source(file.path(cwd, "external/R/utils.R"))
-config = parse_config(config)
+## source(file.path(cwd, "external/R/utils.R"))
+source(file.path(cwd, "utils.R"))
+## config = parse_config(config)
+config[["subset"]] <- parse_config_subset(config)
+config[["aggregation_period"]] <- parse_config_aggregation_period(config)
+config[["modelling"]] <- parse_config_modelling(config)
 
 metadata = catalogue()
 experiment_conf = config$modelling[[experiment]]

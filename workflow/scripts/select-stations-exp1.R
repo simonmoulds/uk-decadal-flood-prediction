@@ -12,8 +12,9 @@ options(dplyr.summarise.inform = FALSE)
 
 if (sys.nframe() == 0L) {
   args = commandArgs(trailingOnly=TRUE)
-  config <- read_yaml(args[1])
+  inputdir <- args[1]
   outputfile <- args[2]
+  config <- read_yaml(args[3])
   args = commandArgs()
   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
   cwd <- dirname(regmatches(args, m))
@@ -42,7 +43,10 @@ metadata =
 
 ## Next identify stations included in the UKBN2 dataset
 ukbn2_stations <- read_csv(
-  file.path(config$aux_data$ukbn, "UKBN_Station_List_vUKBN2.0_1.csv"),
+  file.path(
+    inputdir,
+    config$aux_data$ukbn, "UKBN_Station_List_vUKBN2.0_1.csv"
+  ),
   show_col_types = FALSE
 )
 ## Allow benchmark scores of 1 (caution) and 2 (suitable)

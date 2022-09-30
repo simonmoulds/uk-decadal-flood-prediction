@@ -1,10 +1,18 @@
+import os
 
-configfile: 'config/config.yml'
+CONFIG = 'config/config.yml'
+configfile: CONFIG
 
 include: 'Snakefile_0'
 
 AGGR = ['yr2', 'yr2to9', 'yr2to9_lag', 'yr2to5_lag']
 EXPM = ['hindcast', 'observed']
+
+EXP1_DIRECTORY = os.path.join(RESULTS_DIRECTORY, 'exp1')
+STATIONS_FILE = os.path.join(EXP1_DIRECTORY, 'stations.txt')
+NRFA_DISCHARGE_DIRECTORY = os.path.join(EXP1_DIRECTORY, 'nrfa-discharge-summaries')
+NRFA_METADATA_FILE = os.path.join(EXP1_DIRECTORY, 'nrfa-metadata.parquet')
+ANALYSIS_DIRECTORY = os.path.join(EXP1_DIRECTORY, 'analysis')
 
 rule all:
     input:
@@ -17,108 +25,177 @@ rule all:
         'results/exp1/fig/figS3.png',
         'results/exp1/fig/figS4.png'
 
-# rule obs_input:
+# rule select_stations:
 #     input:
-#         script='workflow/scripts/external/Python/prepare-observed-input-data.py',
+#         script='workflow/scripts/select-stations-exp1.R',
 #         config='config/config.yml'
 #     output:
-#         'results/exp1/obs.parquet'
+#         'results/exp1/stations.txt'
+#     shell:
+#         """
+#         Rscript {input.script} {input.config} {output}
+#         """
+rule select_stations:
+    input:
+        script='workflow/scripts/select-stations-exp1.R',
+        config=CONFIG
+    output:
+        STATIONS_FILE
+    params:
+        outfile=STATIONS_FILE
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
+    shell:
+        """
+        Rscript {input.script} {config[input_data_root]} {params.outfile} {input.config}
+        """
+
+# rule get_discharge_data:
+#     input:
+#         stations='results/exp1/stations.txt',
+#         script='workflow/scripts/external/R/download-discharge-data.R'
+#     output:
+#         directory('results/exp1/nrfa-discharge-summaries')
 #     params:
 #         outputdir='results/exp1'
 #     shell:
 #         """
-#         python {input.script} -i {input.config} -o {params.outputdir}
+#         Rscript {input.script} {input.stations} {params.outputdir}
 #         """
-
-# rule mod_input:
-#     input:
-#         script='workflow/scripts/external/Python/prepare-modelled-input-data.py',
-#         config='config/config.yml'
-#     output:
-#         directory('results/exp1/ensemble-forecast')
-#     shell:
-#         """
-#         mkdir -p {output}
-#         python {input.script} -i {input.config} -o {output}
-#         """
-
-rule select_stations:
-    input:
-        script='workflow/scripts/select-stations-exp1.R',
-        config='config/config.yml'
-    output:
-        'results/exp1/stations.txt'
-    shell:
-        """
-        Rscript {input.script} {input.config} {output}
-        """
-
 rule get_discharge_data:
     input:
-        stations='results/exp1/stations.txt',
-        script='workflow/scripts/external/R/download-discharge-data.R'
+        stations=STATIONS_FILE,
+        script='workflow/scripts/download-discharge-data.R'
     output:
-        directory('results/exp1/nrfa-discharge-summaries')
+        directory(NRFA_DISCHARGE_DIRECTORY),
+        NRFA_METADATA_FILE
     params:
-        outputdir='results/exp1'
+        outputdir=EXP1_DIRECTORY
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
     shell:
         """
         Rscript {input.script} {input.stations} {params.outputdir}
         """
 
+# rule nao_matching:
+#     input:
+#         'results/exp1/nrfa-discharge-summaries',
+#         script='workflow/scripts/external/R/perform-nao-matching.R',
+#         config='config/config.yml',
+#         obs='results/intermediate/obs.parquet',
+#         fcst='results/intermediate/ensemble-forecast'
+#     output:
+#         'results/exp1/analysis/{aggr}/obs_study_period.parquet',
+#         'results/exp1/analysis/{aggr}/ensemble_fcst.parquet',
+#         'results/exp1/analysis/{aggr}/ensemble_mean_fcst.parquet',
+#         'results/exp1/analysis/{aggr}/matched_ensemble.parquet',
+#         'results/exp1/analysis/{aggr}/matched_ensemble_error.parquet'
+#     params:
+#         outputdir='results/exp1/analysis'
+#     shell:
+#         """
+#         Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
+#         """
 rule nao_matching:
     input:
-        'results/exp1/nrfa-discharge-summaries',
-        script='workflow/scripts/external/R/perform-nao-matching.R',
+        NRFA_DISCHARGE_DIRECTORY,
+        script='workflow/scripts/perform-nao-matching.R',
         config='config/config.yml',
-        obs='results/intermediate/obs.parquet',
-        fcst='results/intermediate/ensemble-forecast'
+        obs=OBSERVED_DATA_FILE,
+        fcst=ENSEMBLE_FORECAST_DATA_DIRECTORY
     output:
-        'results/exp1/analysis/{aggr}/obs_study_period.parquet',
-        'results/exp1/analysis/{aggr}/ensemble_fcst.parquet',
-        'results/exp1/analysis/{aggr}/ensemble_mean_fcst.parquet',
-        'results/exp1/analysis/{aggr}/matched_ensemble.parquet',
-        'results/exp1/analysis/{aggr}/matched_ensemble_error.parquet'
+        ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
+        ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet',
+        ANALYSIS_DIRECTORY + '/{aggr}/ensemble_mean_fcst.parquet',
+        ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet',
+        ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet'
     params:
-        outputdir='results/exp1/analysis'
+        outputdir=ANALYSIS_DIRECTORY
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
     shell:
         """
         Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
         """
 
+# rule build_catchment_dataset:
+#     input:
+#         'results/intermediate/obs.parquet',
+#         'results/exp1/nrfa-discharge-summaries',
+#         expand('results/exp1/analysis/{aggr}/matched_ensemble.parquet', aggr = AGGR),
+#         expand('results/exp1/analysis/{aggr}/matched_ensemble_error.parquet', aggr = AGGR),
+#         script='workflow/scripts/external/R/build-catchment-dataset.R',
+#         config='config/config.yml',
+#         obs='results/intermediate/obs.parquet'
+#     output:
+#         directory('results/exp1/analysis/{aggr}/input')
+#     params:
+#         outputdir='results/exp1'
+#     shell:
+#         """
+#         Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
+#         """
 rule build_catchment_dataset:
     input:
-        'results/intermediate/obs.parquet',
-        'results/exp1/nrfa-discharge-summaries',
-        expand('results/exp1/analysis/{aggr}/matched_ensemble.parquet', aggr = AGGR),
-        expand('results/exp1/analysis/{aggr}/matched_ensemble_error.parquet', aggr = AGGR),
-        script='workflow/scripts/external/R/build-catchment-dataset.R',
+        NRFA_DISCHARGE_DIRECTORY,
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet', aggr = AGGR),
+        script='workflow/scripts/build-catchment-dataset.R',
         config='config/config.yml',
-        obs='results/intermediate/obs.parquet'
+        obs=OBSERVED_DATA_FILE
     output:
-        directory('results/exp1/analysis/{aggr}/input')
+        directory(ANALYSIS_DIRECTORY + '/{aggr}/input')
     params:
-        outputdir='results/exp1'
+        outputdir=EXP2_DIRECTORY
     shell:
         """
         Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
         """
 
+# rule fit_gamlss_models:
+#     input:
+#         expand('results/exp1/analysis/{aggr}/input', aggr = AGGR),
+#         script='workflow/scripts/fit-gamlss-models.R',
+#         config='config/config.yml'
+#     output:
+#         directory('results/exp1/analysis/{expm}')
+#     wildcard_constraints:
+#         expm='|'.join([re.escape(x) for x in EXPM])
+#     params:
+#         method='cv',
+#         outputdir='results/exp1'
+#     shell:
+#         """
+#         Rscript {input.script} {input.config} {wildcards.expm} {params.method} {params.outputdir}
+#         """
 rule fit_gamlss_models:
     input:
-        expand('results/exp1/analysis/{aggr}/input', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR),
         script='workflow/scripts/fit-gamlss-models.R',
         config='config/config.yml'
     output:
-        directory('results/exp1/analysis/{expm}')
+        directory(ANALYSIS_DIRECTORY + '/{expm}')
+        # directory('results/exp2/analysis/hindcast/gamlss/{aggr}')
     wildcard_constraints:
         expm='|'.join([re.escape(x) for x in EXPM])
     params:
-        method='cv',
-        outputdir='results/exp1'
+        # experiment='hindcast',
+        # aggregation_period='yr2',
+        method='forward',
+        outputdir=EXP2_DIRECTORY
+        # outputdir='results/exp2'
+    # conda:
+    #     'decadal-flood-prediction'
     shell:
         """
-        Rscript {input.script} {input.config} {wildcards.expm} {params.method} {params.outputdir}
+        Rscript {input.script} {input.config} {wildcards.expm} {wildcards.aggr} {params.method} {params.outputdir}
         """
 
 rule make_plots:
@@ -142,38 +219,3 @@ rule make_plots:
         Rscript {input.script} {input.config} {params.outputdir}
         """
 
-# rule prepare_nh_input:
-#     input:
-#         expand('results/analysis/{aggr}/input', aggr = AGGR),
-#         script='workflow/scripts/prepare-nh-input.py',
-#         config='config/config.yml'
-#     output:
-#         directory('results/analysis/{aggr}/nh-input/time_series'),
-#         directory('results/analysis/{aggr}/nh-input/attributes'),
-#         'results/analysis/{aggr}/nh-input/basins.txt',
-#         'results/analysis/{aggr}/nh-input/basins.yml'
-#     params:
-#         outputdir='results'
-#     conda:
-#         "decadal-flood-prediction"
-#     shell:
-#         """
-#         python {input.script} {input.config} {wildcards.aggr} {params.outputdir}
-#         """
-
-# rule run_nh:
-#     input:
-#         'results/analysis/yr2to9_lag/nh-input/time_series',
-#         'results/analysis/yr2to9_lag/nh-input/attributes',
-#         'results/analysis/yr2to9_lag/nh-input/basins.txt',
-#         nh_config='results/analysis/yr2to9_lag/nh-input/basins.yml',
-#         script='workflow/scripts/run-nh.py',
-#         config='config/config.yml'
-#     output:
-#         directory('results/analysis/yr2to9_lag/nh-output/time_series')
-#     conda:
-#         "neuralhydrology"
-#     shell:
-#         """
-#         python {input.script} {input.nh_config} {output}
-#         """
