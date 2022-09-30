@@ -225,11 +225,19 @@ def run_tabular_regression(cfg: Config, model_type: str):
 # outputdir = os.path.join('results/exp2/analysis/hindcast/',  model_type)
 
 # Get command line arguments
-config = sys.argv[1]
-nh_config = sys.argv[2]
-aggregation_period = sys.argv[3]
-model_type = sys.argv[4]
-outputdir = sys.argv[5]
+nh_config = sys.argv[1]
+# inputdir = sys.argv[1]
+aggregation_period = sys.argv[2]
+model_type = sys.argv[3]
+outputdir = sys.argv[4]
+config = sys.argv[5]
+# config = sys.argv[1]
+# # nh_config = sys.argv[2]
+# aggregation_period = sys.argv[2]
+# model_type = sys.argv[3]
+# outputdir = sys.argv[4]
+
+# nh_config = os.path.join(inputdir, aggregation_period, 'nh-input', 'basins.yml')
 
 # Load neuralhydrology configuration
 yaml = YAML() #typ = 'safe')
