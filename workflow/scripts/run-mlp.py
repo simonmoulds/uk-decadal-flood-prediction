@@ -226,17 +226,17 @@ def run_tabular_regression(cfg: Config, model_type: str):
 
 # Get command line arguments
 nh_config = sys.argv[1]
-# inputdir = sys.argv[1]
 aggregation_period = sys.argv[2]
 model_type = sys.argv[3]
 outputdir = sys.argv[4]
 config = sys.argv[5]
-# config = sys.argv[1]
-# # nh_config = sys.argv[2]
-# aggregation_period = sys.argv[2]
-# model_type = sys.argv[3]
-# outputdir = sys.argv[4]
 
+print(nh_config)
+print(aggregation_period)
+print(model_type)
+print(outputdir)
+print(config)
+# inputdir = sys.argv[1]
 # nh_config = os.path.join(inputdir, aggregation_period, 'nh-input', 'basins.yml')
 
 # Load neuralhydrology configuration
