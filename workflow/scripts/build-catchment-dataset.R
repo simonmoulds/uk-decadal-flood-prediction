@@ -12,10 +12,10 @@ options(dplyr.summarise.inform = FALSE)
 
 ## ## TESTING
 ## config = read_yaml("config/config.yml")
-## obspath = "results/obs.parquet"
+## obspath = "results/intermediate/obs.parquet"
 ## aggr_period = "yr2to9_lag"
-## outputroot = "results"
-## cwd = "workflow/scripts/external/R"
+## outputroot = "results/exp2"
+## cwd = "workflow/scripts"
 
 if (sys.nframe() == 0L) {
   args = commandArgs(trailingOnly=TRUE)
@@ -28,7 +28,9 @@ if (sys.nframe() == 0L) {
   cwd <- dirname(regmatches(args, m))
 }
 source(file.path(cwd, "utils.R")) # TODO eventually put utils in package
-config = parse_config(config)
+## config = parse_config(config)
+config[["aggregation_period"]] = parse_config_aggregation_period(config)
+config[["subset"]] <- parse_config_subset(config)
 
 ## TODO put these in config
 study_period = 1960:2005
