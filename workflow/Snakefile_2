@@ -185,8 +185,8 @@ rule fit_xgboost_models:
         # expand('results/exp2/analysis/{aggr}/nh-input/attributes', aggr = AGGR),
         # expand('results/exp2/analysis/{aggr}/nh-input/basins.txt', aggr = AGGR),
         script='workflow/scripts/run-mlp.py',
-        config='config/config.yml'
-        nh_config=expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml', aggr = AGGR),
+        config='config/config.yml',
+        nh_config=expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml', aggr = AGGR)
         # nh_config=expand(ANALYSIS_DIRECTORY, '/{aggr}/nh-input/basins.yml', aggr = AGGR)
     output:
         directory(ANALYSIS_DIRECTORY + '/hindcast/xgboost/{aggr}')
