@@ -153,7 +153,7 @@ rule build_catchment_dataset:
     output:
         directory(ANALYSIS_DIRECTORY + '/{aggr}/input')
     params:
-        outputdir=EXP2_DIRECTORY
+        outputdir=EXP1_DIRECTORY
     shell:
         """
         Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
@@ -189,7 +189,7 @@ rule fit_gamlss_models:
         # experiment='hindcast',
         # aggregation_period='yr2',
         method='forward',
-        outputdir=EXP2_DIRECTORY
+        outputdir=EXP1_DIRECTORY
         # outputdir='results/exp2'
     # conda:
     #     'decadal-flood-prediction'

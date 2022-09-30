@@ -138,7 +138,7 @@ rule prepare_nh_input:
         'decadal-flood-prediction'
     shell:
         """
-        python {input.script} {input.config} {wildcards.aggr} {params.outputdir}
+        python {input.script} {config[input_data_root]} {wildcards.aggr} {params.outputdir} {input.config}
         """
 
 rule fit_gamlss_models:

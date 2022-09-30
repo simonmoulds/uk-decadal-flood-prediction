@@ -20,7 +20,7 @@ if (sys.nframe() == 0L) {
   cwd <- dirname(regmatches(args, m))
 }
 source(file.path(cwd, "utils.R"))
-config = parse_config_io(config)
+config = parse_config_io(config, inputdir)
 
 metadata = catalogue()
 names(metadata) = names(metadata) %>% gsub("-", "_", .)

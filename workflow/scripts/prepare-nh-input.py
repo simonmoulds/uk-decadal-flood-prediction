@@ -13,9 +13,10 @@ import xarray as xr
 from ruamel.yaml import YAML
 
 # Get command line arguments
-config = sys.argv[1]
+inputdir = sys.argv[1]
 aggr_period = sys.argv[2]
 outputroot = sys.argv[3]
+config = sys.argv[4]
 
 # # For testing:
 # config = 'config/config.yml'
@@ -51,7 +52,8 @@ except FileExistsError:
 yaml = YAML() #typ = 'safe')
 cfg = yaml.load(Path(config))
 camels_datadir = os.path.join(
-    cfg['input_data_root'],
+    inputdir,
+    # cfg['input_data_root'],
     cfg['aux_data']['camels']['subdirectory'],
     'data'
 )
