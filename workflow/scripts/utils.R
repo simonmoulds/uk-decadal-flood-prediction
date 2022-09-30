@@ -1074,6 +1074,9 @@ fit_models <- function(formulas,
   if (!isTRUE(all.equal(model_names, names(sigma_formulas)))) {
     stop()
   }
+  if (model_family != "GA") {
+    stop(paste0("Model family '", model_family, "' not yet supported"))
+  }
   fitted_models = list()
   for (i in 1:length(model_names)) {
     model_nm = model_names[i]
@@ -1081,7 +1084,7 @@ fit_models <- function(formulas,
       gamlss(
         formula = formulas[[i]],
         sigma.formula = sigma_formulas[[i]],
-        family = model_family,
+        family = GA, #model_family,
         trace = FALSE,
         data = data,
         ...

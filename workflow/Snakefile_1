@@ -181,14 +181,15 @@ rule fit_gamlss_models:
         script='workflow/scripts/fit-gamlss-models.R',
         config='config/config.yml'
     output:
-        directory(ANALYSIS_DIRECTORY + '/{expm}')
+        directory(ANALYSIS_DIRECTORY + '/{expm}/gamlss/{aggr}')
         # directory('results/exp2/analysis/hindcast/gamlss/{aggr}')
-    wildcard_constraints:
-        expm='|'.join([re.escape(x) for x in EXPM])
+    # wildcard_constraints:
+    #     expm='|'.join([re.escape(x) for x in EXPM]),
+    #     aggr='|'.join([re.escape(x) for x in AGGR])
     params:
         # experiment='hindcast',
         # aggregation_period='yr2',
-        method='forward',
+        method='cv',
         outputdir=EXP1_DIRECTORY
         # outputdir='results/exp2'
     # conda:
@@ -200,7 +201,7 @@ rule fit_gamlss_models:
 
 rule make_plots:
     input:
-        expand('results/exp1/analysis/{expm}', expm = EXPM),
+        expand(ANALYSIS_DIRECTORY + '/{expm}/gamlss/{aggr}', expm = EXPM, aggr = AGGR),
         script='workflow/scripts/external/R/evaluate-models.R',
         config='config/config.yml'
     output:
