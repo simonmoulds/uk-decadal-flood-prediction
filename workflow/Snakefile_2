@@ -111,6 +111,10 @@ rule build_catchment_dataset:
         directory(ANALYSIS_DIRECTORY + '/{aggr}/input')
     params:
         outputdir=EXP2_DIRECTORY
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
     shell:
         """
         Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
@@ -134,6 +138,10 @@ rule prepare_nh_input:
     params:
         outputdir=EXP2_DIRECTORY
         # outputdir='results/exp2'
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
     conda:
         'decadal-flood-prediction'
     shell:
@@ -156,6 +164,10 @@ rule fit_gamlss_models:
         method='forward',
         outputdir=EXP2_DIRECTORY
         # outputdir='results/exp2'
+    resources:
+        time = "01:00:00",
+        mem_mb = 4000,
+        partition = "short"
     # conda:
     #     'decadal-flood-prediction'
     shell:
@@ -163,45 +175,32 @@ rule fit_gamlss_models:
         Rscript {input.script} {input.config} {params.experiment} {wildcards.aggr} {params.method} {params.outputdir}
         """
 
-# # rule fit_lstm_models:
-# #     input:
-# #         expand('results/exp2/analysis/{aggr}/nh-input/time_series', aggr = AGGR),
-# #         expand('results/exp2/analysis/{aggr}/nh-input/attributes', aggr = AGGR),
-# #         expand('results/exp2/analysis/{aggr}/nh-input/basins.txt', aggr = AGGR),
-# #         script='workflow/scripts/run-nh.py',
-# #         config='config/config.yml',
-# #         nh_config='results/exp2/analysis/{aggr}/nh-input/basins.yml',
-# #     output:
-# #         directory('results/exp2/analysis/hindcast/lstm/{aggr}')
-# #     conda:
-# #         'neuralhydrology'
-# #     shell:
-# #         """
-# #         python {input.script} {input.config} {input.nh_config} {wildcards.aggr} {output}
-# #         """
-
-# rule fit_xgboost_models:
-#     input:
-#         expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series', aggr = AGGR),
-#         expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes', aggr = AGGR),
-#         expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt', aggr = AGGR),
-#         # expand('results/exp2/analysis/{aggr}/nh-input/time_series', aggr = AGGR),
-#         # expand('results/exp2/analysis/{aggr}/nh-input/attributes', aggr = AGGR),
-#         # expand('results/exp2/analysis/{aggr}/nh-input/basins.txt', aggr = AGGR),
-#         script='workflow/scripts/run-mlp.py',
-#         config='config/config.yml',
-#         nh_config=expand(ANALYSIS_DIRECTORY, '/{aggr}/nh-input/basins.yml', aggr = AGGR)
-#     output:
-#         directory(ANALYSIS_DIRECTORY + '/hindcast/xgboost/{aggr}')
-#         # directory('results/exp2/analysis/hindcast/xgboost/{aggr}')
-#     params:
-#         model_type='xgboost'
-#     conda:
-#         'neuralhydrology'
-#     shell:
-#         """
-#         python {input.script} {input.config} {input.nh_config} {wildcards.aggr} {params.model_type} {output}
-#         """
+rule fit_xgboost_models:
+    input:
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt', aggr = AGGR),
+        # expand('results/exp2/analysis/{aggr}/nh-input/time_series', aggr = AGGR),
+        # expand('results/exp2/analysis/{aggr}/nh-input/attributes', aggr = AGGR),
+        # expand('results/exp2/analysis/{aggr}/nh-input/basins.txt', aggr = AGGR),
+        script='workflow/scripts/run-mlp.py',
+        config='config/config.yml',
+        nh_config=expand(ANALYSIS_DIRECTORY, '/{aggr}/nh-input/basins.yml', aggr = AGGR)
+    output:
+        directory(ANALYSIS_DIRECTORY + '/hindcast/xgboost/{aggr}')
+        # directory('results/exp2/analysis/hindcast/xgboost/{aggr}')
+    params:
+        model_type='xgboost'
+    resources:
+        time = "02:00:00",
+        mem_mb = 4000,
+        partition = "short"
+    conda:
+        'neuralhydrology'
+    shell:
+        """
+        python {input.script} {input.config} {input.nh_config} {wildcards.aggr} {params.model_type} {output}
+        """
 
 # rule fit_tabnet_models:
 #     input:
@@ -226,6 +225,23 @@ rule fit_gamlss_models:
 #         """
 #         python {input.script} {input.config} {input.nh_config} {wildcards.aggr} {params.model_type} {output}
 #         """
+
+# # rule fit_lstm_models:
+# #     input:
+# #         expand('results/exp2/analysis/{aggr}/nh-input/time_series', aggr = AGGR),
+# #         expand('results/exp2/analysis/{aggr}/nh-input/attributes', aggr = AGGR),
+# #         expand('results/exp2/analysis/{aggr}/nh-input/basins.txt', aggr = AGGR),
+# #         script='workflow/scripts/run-nh.py',
+# #         config='config/config.yml',
+# #         nh_config='results/exp2/analysis/{aggr}/nh-input/basins.yml',
+# #     output:
+# #         directory('results/exp2/analysis/hindcast/lstm/{aggr}')
+# #     conda:
+# #         'neuralhydrology'
+# #     shell:
+# #         """
+# #         python {input.script} {input.config} {input.nh_config} {wildcards.aggr} {output}
+# #         """
 
 # rule make_hindcast_plots:
 #     input:
