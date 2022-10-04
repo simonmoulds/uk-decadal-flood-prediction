@@ -254,5 +254,5 @@ rule make_hindcast_plots:
         outputdir=EXP2_DIRECTORY
     shell:
         """
-        Rscript {input.script} {config[input_data_root]} {wildcards.aggr} {params.outfile} {input.config}
+        Rscript {input.script} {config[input_data_root]} {wildcards.aggr} {params.outputdir} {input.config}
         """
