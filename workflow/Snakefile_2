@@ -36,9 +36,9 @@ rule all:
         # expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.yml', aggr = AGGR),
         # expand(ANALYSIS_DIRECTORY + '/hindcast/gamlss/{aggr}', aggr = AGGR)
         # expand(ANALYSIS_DIRECTORY + '/hindcast/xgboost/{aggr}', aggr = AGGR)
-        expand(ANALYSIS_DIRECTORY + '/hindcast/tabnet/{aggr}', aggr = AGGR)
-        # expand('results/exp2/fig/{aggr}/fig1.png', aggr = AGGR),
-        # expand('results/exp2/fig/{aggr}/fig2.png', aggr = AGGR),
+        # expand(ANALYSIS_DIRECTORY + '/hindcast/tabnet/{aggr}', aggr = AGGR)
+        expand('results/exp2/fig/{aggr}/fig1.png', aggr = AGGR),
+        expand('results/exp2/fig/{aggr}/fig2.png', aggr = AGGR)
         # expand('results/exp2/fig/{aggr}/fig3.png', aggr = AGGR),
         # expand('results/exp2/fig/{aggr}/fig4.png', aggr = AGGR)
 
@@ -236,36 +236,21 @@ rule fit_tabnet_models:
         python {input.script} {params.inputdir} {wildcards.aggr} {params.model_type} {output} {input.config}
         """
 
-# # rule fit_lstm_models:
-# #     input:
-# #         expand('results/exp2/analysis/{aggr}/nh-input/time_series', aggr = AGGR),
-# #         expand('results/exp2/analysis/{aggr}/nh-input/attributes', aggr = AGGR),
-# #         expand('results/exp2/analysis/{aggr}/nh-input/basins.txt', aggr = AGGR),
-# #         script='workflow/scripts/run-nh.py',
-# #         config='config/config.yml',
-# #         nh_config='results/exp2/analysis/{aggr}/nh-input/basins.yml',
-# #     output:
-# #         directory('results/exp2/analysis/hindcast/lstm/{aggr}')
-# #     conda:
-# #         'neuralhydrology'
-# #     shell:
-# #         """
-# #         python {input.script} {input.config} {input.nh_config} {wildcards.aggr} {output}
-# #         """
-
-# rule make_hindcast_plots:
-#     input:
-#         expand('results/exp2/analysis/hindcast', expm = EXPM),
-#         script='workflow/scripts/evaluate-models.R',
-#         config='config/config.yml'
-#     output:
-#         'results/exp2/fig/{aggr}/fig1.png',
-#         'results/exp2/fig/{aggr}/fig2.png',
-#         'results/exp2/fig/{aggr}/fig3.png',
-#         'results/exp2/fig/{aggr}/fig4.png'
-#     params:
-#         outputdir='results/exp2'
-#     shell:
-#         """
-#         Rscript {input.script} {input.config} {wildcards.aggr} {params.outputdir}
-#         """
+rule make_hindcast_plots:
+    input:
+        expand('results/exp2/analysis/hindcast/gamlss/{aggr}/prediction', aggr = AGGR),
+        expand('results/exp2/analysis/hindcast/xgboost/{aggr}/prediction', aggr = AGGR),
+        expand('results/exp2/analysis/hindcast/tabnet/{aggr}/prediction', aggr = AGGR),
+        script='workflow/scripts/evaluate-nh-output.R',
+        config='config/config.yml'
+    output:
+        'results/exp2/fig/{aggr}/fig1.png',
+        'results/exp2/fig/{aggr}/fig2.png'
+        # 'results/exp2/fig/{aggr}/fig3.png',
+        # 'results/exp2/fig/{aggr}/fig4.png'
+    params:
+        outputdir='results/exp2'
+    shell:
+        """
+        Rscript {input.script} {config[input_data_root]} {wildcards.aggr} {params.outfile} {input.config}
+        """
