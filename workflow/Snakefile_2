@@ -222,7 +222,8 @@ rule fit_tabnet_models:
         directory(ANALYSIS_DIRECTORY + '/hindcast/tabnet/{aggr}')
         # directory('results/exp2/analysis/hindcast/tabnet/{aggr}')
     params:
-        model_type='tabnet'
+        model_type='tabnet',
+        inputdir=ANALYSIS_DIRECTORY
     resources:
         time = "02:00:00",
         mem_mb = 4000,
