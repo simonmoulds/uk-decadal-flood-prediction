@@ -205,29 +205,34 @@ rule fit_xgboost_models:
         python {input.script} {params.inputdir} {wildcards.aggr} {params.model_type} {output} {input.config}
         """
 
-# rule fit_tabnet_models:
-#     input:
-#         expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series', aggr = AGGR),
-#         expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes', aggr = AGGR),
-#         expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt', aggr = AGGR),
-#         # expand('results/exp2/analysis/{aggr}/nh-input/time_series', aggr = AGGR),
-#         # expand('results/exp2/analysis/{aggr}/nh-input/attributes', aggr = AGGR),
-#         # expand('results/exp2/analysis/{aggr}/nh-input/basins.txt', aggr = AGGR),
-#         script='workflow/scripts/run-mlp.py',
-#         config='config/config.yml',
-#         nh_config=expand(ANALYSIS_DIRECTORY, '/{aggr}/nh-input/basins.yml', aggr = AGGR)
-#         # nh_config='results/exp2/analysis/{aggr}/nh-input/basins.yml',
-#     output:
-#         directory(ANALYSIS_DIRECTORY + '/hindcast/tabnet/{aggr}')
-#         # directory('results/exp2/analysis/hindcast/tabnet/{aggr}')
-#     params:
-#         model_type='tabnet'
-#     conda:
-#         'neuralhydrology'
-#     shell:
-#         """
-#         python {input.script} {input.config} {input.nh_config} {wildcards.aggr} {params.model_type} {output}
-#         """
+rule fit_tabnet_models:
+    input:
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/time_series', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/attributes', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/nh-input/basins.txt', aggr = AGGR),
+        # expand('results/exp2/analysis/{aggr}/nh-input/time_series', aggr = AGGR),
+        # expand('results/exp2/analysis/{aggr}/nh-input/attributes', aggr = AGGR),
+        # expand('results/exp2/analysis/{aggr}/nh-input/basins.txt', aggr = AGGR),
+        script='workflow/scripts/run-mlp.py',
+        config='config/config.yml',
+        # nh_config=expand(ANALYSIS_DIRECTORY, '/{aggr}/nh-input/basins.yml', aggr = AGGR)
+        # nh_config='results/exp2/analysis/{aggr}/nh-input/basins.yml',
+    output:
+        directory(ANALYSIS_DIRECTORY + '/hindcast/tabnet/{aggr}')
+        # directory('results/exp2/analysis/hindcast/tabnet/{aggr}')
+    params:
+        model_type='tabnet'
+    resources:
+        time = "02:00:00",
+        mem_mb = 4000,
+        partition = "short",
+        slurm = "gres=gpu:v100:1"
+    conda:
+        'neuralhydrology'
+    shell:
+        """
+        python {input.script} {params.inputdir} {wildcards.aggr} {params.model_type} {output} {input.config}
+        """
 
 # # rule fit_lstm_models:
 # #     input:
