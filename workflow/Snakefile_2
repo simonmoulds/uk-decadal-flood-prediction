@@ -238,18 +238,18 @@ rule fit_tabnet_models:
 
 rule make_hindcast_plots:
     input:
-        expand('results/exp2/analysis/hindcast/gamlss/{aggr}/prediction', aggr = AGGR),
-        expand('results/exp2/analysis/hindcast/xgboost/{aggr}/prediction', aggr = AGGR),
-        expand('results/exp2/analysis/hindcast/tabnet/{aggr}/prediction', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/hindcast/gamlss/{aggr}/prediction', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/hindcast/xgboost/{aggr}/prediction', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/hindcast/tabnet/{aggr}/prediction', aggr = AGGR),
         script='workflow/scripts/evaluate-nh-output.R',
         config='config/config.yml'
     output:
-        'results/exp2/fig/{aggr}/fig1.png',
-        'results/exp2/fig/{aggr}/fig2.png'
+        EXP2_DIRECTORY + '/fig/{aggr}/fig1.png',
+        EXP2_DIRECTORY + '/fig/{aggr}/fig2.png'
         # 'results/exp2/fig/{aggr}/fig3.png',
         # 'results/exp2/fig/{aggr}/fig4.png'
     params:
-        outputdir='results/exp2'
+        outputdir=EXP2_DIRECTORY
     shell:
         """
         Rscript {input.script} {config[input_data_root]} {wildcards.aggr} {params.outfile} {input.config}
