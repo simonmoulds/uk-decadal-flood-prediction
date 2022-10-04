@@ -26,7 +26,12 @@ if (sys.nframe() == 0L) {
   aggregation_period = args[2]
   outputroot <- args[3]
   config <- read_yaml(args[4])
+  args = commandArgs()
+  m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
+  cwd <- dirname(regmatches(args, m))
 }
+## TODO put these functions in an R package
+source(file.path(cwd, "utils.R"))
 
 ## #################################### ##
 ## Set some variables needed for plotting
