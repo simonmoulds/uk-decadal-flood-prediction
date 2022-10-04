@@ -240,9 +240,9 @@ rule fit_tabnet_models:
 
 rule make_hindcast_plots:
     input:
-        expand(ANALYSIS_DIRECTORY + '/hindcast/gamlss/{aggr}/prediction', aggr = AGGR),
-        expand(ANALYSIS_DIRECTORY + '/hindcast/xgboost/{aggr}/prediction', aggr = AGGR),
-        expand(ANALYSIS_DIRECTORY + '/hindcast/tabnet/{aggr}/prediction', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/hindcast/gamlss/{aggr}', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/hindcast/xgboost/{aggr}', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/hindcast/tabnet/{aggr}', aggr = AGGR),
         script='workflow/scripts/evaluate-nh-output.R',
         config='config/config.yml'
     output:
