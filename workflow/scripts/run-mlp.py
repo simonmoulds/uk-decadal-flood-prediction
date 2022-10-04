@@ -280,12 +280,15 @@ while test_year_start <= max_test_year_start:
     df = df.rename({'basin' : 'ID'}, axis = 1)
     df['date'] = pd.to_datetime(df['date'])
     df['year'] = [tm.year for tm in df['date']]
+    print("a")
     rowdata_df = pa.Table.from_pandas(df, preserve_index=False)
+    print("b")
     pq.write_to_dataset(
         rowdata_df,
         root_path = os.path.join(outputdir, 'prediction'),
         partition_cols = ['ID', 'date']
     )
+    print("c")
     train_year_end += 1
     test_year_start += 1
     pbar.update(1)
