@@ -37,8 +37,10 @@ rule all:
         # expand(ANALYSIS_DIRECTORY + '/hindcast/gamlss/{aggr}', aggr = AGGR)
         # expand(ANALYSIS_DIRECTORY + '/hindcast/xgboost/{aggr}', aggr = AGGR)
         # expand(ANALYSIS_DIRECTORY + '/hindcast/tabnet/{aggr}', aggr = AGGR)
-        expand('results/exp2/fig/{aggr}/fig1.png', aggr = AGGR),
-        expand('results/exp2/fig/{aggr}/fig2.png', aggr = AGGR)
+        expand(EXP2_DIRECTORY + '/fig/{aggr}/fig1.png', aggr = AGGR),
+        expand(EXP2_DIRECTORY + '/fig/{aggr}/fig2.png', aggr = AGGR)
+        # expand('results/exp2/fig/{aggr}/fig1.png', aggr = AGGR),
+        # expand('results/exp2/fig/{aggr}/fig2.png', aggr = AGGR)
         # expand('results/exp2/fig/{aggr}/fig3.png', aggr = AGGR),
         # expand('results/exp2/fig/{aggr}/fig4.png', aggr = AGGR)
 
