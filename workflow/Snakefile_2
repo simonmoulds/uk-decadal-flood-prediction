@@ -253,7 +253,7 @@ rule make_hindcast_plots:
     params:
         outputdir=EXP2_DIRECTORY
     resources:
-        time = "02:00:00",
+        time = "00:30:00",
         mem_mb = 4000,
         partition = "short"
     shell:
