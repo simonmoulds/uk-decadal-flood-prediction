@@ -252,6 +252,10 @@ rule make_hindcast_plots:
         # 'results/exp2/fig/{aggr}/fig4.png'
     params:
         outputdir=EXP2_DIRECTORY
+    resources:
+        time = "02:00:00",
+        mem_mb = 4000,
+        partition = "short"
     shell:
         """
         Rscript {input.script} {config[input_data_root]} {wildcards.aggr} {params.outputdir} {input.config}
