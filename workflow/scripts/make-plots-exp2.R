@@ -16,6 +16,7 @@ library(yaml)
 library(rnrfa)
 
 options(dplyr.summarise.inform = FALSE)
+options(bitmapType = 'cairo') # For server
 
 ## source("workflow/scripts/external/R/utils.R")
 
