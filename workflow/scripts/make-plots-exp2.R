@@ -230,8 +230,8 @@ plotfun1 <- function(x, legend_title = "ACC") {
     ## facet_wrap(. ~ period, ncol = 1) +
     coord_sf(
       xlim = c(-8, 2),
-      ylim = c(50, 59)#,
-      ## default_crs = st_crs(4326)
+      ylim = c(50, 59),
+      default_crs = st_crs(4326)
     ) +
     scale_shape_manual(values = c(21, 24, 22)) +
     scale_fill_stepsn(
@@ -643,8 +643,8 @@ myplotfun3 <- function(x) {
     ) +
     coord_sf(
       xlim = c(-8, 2),
-      ylim = c(50, 60)#,
-      ## default_crs = st_crs(4326)
+      ylim = c(50, 60),
+      default_crs = st_crs(4326)
     ) +
     theme_bw() #+
   p
