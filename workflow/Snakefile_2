@@ -243,7 +243,7 @@ rule make_hindcast_plots:
         expand(ANALYSIS_DIRECTORY + '/hindcast/gamlss/{aggr}', aggr = AGGR),
         expand(ANALYSIS_DIRECTORY + '/hindcast/xgboost/{aggr}', aggr = AGGR),
         expand(ANALYSIS_DIRECTORY + '/hindcast/tabnet/{aggr}', aggr = AGGR),
-        script='workflow/scripts/evaluate-nh-output.R',
+        script='workflow/scripts/make-plots-exp2.R',
         config='config/config.yml'
     output:
         EXP2_DIRECTORY + '/fig/{aggr}/fig1.png',

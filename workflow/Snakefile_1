@@ -25,16 +25,6 @@ rule all:
         'results/exp1/fig/figS3.png',
         'results/exp1/fig/figS4.png'
 
-# rule select_stations:
-#     input:
-#         script='workflow/scripts/select-stations-exp1.R',
-#         config='config/config.yml'
-#     output:
-#         'results/exp1/stations.txt'
-#     shell:
-#         """
-#         Rscript {input.script} {input.config} {output}
-#         """
 rule select_stations:
     input:
         script='workflow/scripts/select-stations-exp1.R',
@@ -52,18 +42,6 @@ rule select_stations:
         Rscript {input.script} {config[input_data_root]} {params.outfile} {input.config}
         """
 
-# rule get_discharge_data:
-#     input:
-#         stations='results/exp1/stations.txt',
-#         script='workflow/scripts/external/R/download-discharge-data.R'
-#     output:
-#         directory('results/exp1/nrfa-discharge-summaries')
-#     params:
-#         outputdir='results/exp1'
-#     shell:
-#         """
-#         Rscript {input.script} {input.stations} {params.outputdir}
-#         """
 rule get_discharge_data:
     input:
         stations=STATIONS_FILE,
@@ -82,25 +60,6 @@ rule get_discharge_data:
         Rscript {input.script} {input.stations} {params.outputdir}
         """
 
-# rule nao_matching:
-#     input:
-#         'results/exp1/nrfa-discharge-summaries',
-#         script='workflow/scripts/external/R/perform-nao-matching.R',
-#         config='config/config.yml',
-#         obs='results/intermediate/obs.parquet',
-#         fcst='results/intermediate/ensemble-forecast'
-#     output:
-#         'results/exp1/analysis/{aggr}/obs_study_period.parquet',
-#         'results/exp1/analysis/{aggr}/ensemble_fcst.parquet',
-#         'results/exp1/analysis/{aggr}/ensemble_mean_fcst.parquet',
-#         'results/exp1/analysis/{aggr}/matched_ensemble.parquet',
-#         'results/exp1/analysis/{aggr}/matched_ensemble_error.parquet'
-#     params:
-#         outputdir='results/exp1/analysis'
-#     shell:
-#         """
-#         Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
-#         """
 rule nao_matching:
     input:
         NRFA_DISCHARGE_DIRECTORY,
@@ -125,23 +84,6 @@ rule nao_matching:
         Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
         """
 
-# rule build_catchment_dataset:
-#     input:
-#         'results/intermediate/obs.parquet',
-#         'results/exp1/nrfa-discharge-summaries',
-#         expand('results/exp1/analysis/{aggr}/matched_ensemble.parquet', aggr = AGGR),
-#         expand('results/exp1/analysis/{aggr}/matched_ensemble_error.parquet', aggr = AGGR),
-#         script='workflow/scripts/external/R/build-catchment-dataset.R',
-#         config='config/config.yml',
-#         obs='results/intermediate/obs.parquet'
-#     output:
-#         directory('results/exp1/analysis/{aggr}/input')
-#     params:
-#         outputdir='results/exp1'
-#     shell:
-#         """
-#         Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
-#         """
 rule build_catchment_dataset:
     input:
         NRFA_DISCHARGE_DIRECTORY,
@@ -159,22 +101,6 @@ rule build_catchment_dataset:
         Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
         """
 
-# rule fit_gamlss_models:
-#     input:
-#         expand('results/exp1/analysis/{aggr}/input', aggr = AGGR),
-#         script='workflow/scripts/fit-gamlss-models.R',
-#         config='config/config.yml'
-#     output:
-#         directory('results/exp1/analysis/{expm}')
-#     wildcard_constraints:
-#         expm='|'.join([re.escape(x) for x in EXPM])
-#     params:
-#         method='cv',
-#         outputdir='results/exp1'
-#     shell:
-#         """
-#         Rscript {input.script} {input.config} {wildcards.expm} {params.method} {params.outputdir}
-#         """
 rule fit_gamlss_models:
     input:
         expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR),
@@ -182,18 +108,9 @@ rule fit_gamlss_models:
         config='config/config.yml'
     output:
         directory(ANALYSIS_DIRECTORY + '/{expm}/gamlss/{aggr}')
-        # directory('results/exp2/analysis/hindcast/gamlss/{aggr}')
-    # wildcard_constraints:
-    #     expm='|'.join([re.escape(x) for x in EXPM]),
-    #     aggr='|'.join([re.escape(x) for x in AGGR])
     params:
-        # experiment='hindcast',
-        # aggregation_period='yr2',
         method='cv',
         outputdir=EXP1_DIRECTORY
-        # outputdir='results/exp2'
-    # conda:
-    #     'decadal-flood-prediction'
     shell:
         """
         Rscript {input.script} {input.config} {wildcards.expm} {wildcards.aggr} {params.method} {params.outputdir}
@@ -202,7 +119,7 @@ rule fit_gamlss_models:
 rule make_plots:
     input:
         expand(ANALYSIS_DIRECTORY + '/{expm}/gamlss/{aggr}', expm = EXPM, aggr = AGGR),
-        script='workflow/scripts/external/R/evaluate-models.R',
+        script='workflow/scripts/make-plots-exp1.R',
         config='config/config.yml'
     output:
         'results/exp1/fig/fig1.png',
