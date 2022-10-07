@@ -16,26 +16,28 @@ library(sf)
 library(yaml)
 
 options(dplyr.summarise.inform = FALSE)
+options(bitmapType = 'cairo') # For server
 
-## FOR TESTING:
-config = read_yaml('config/config.yml')
-## experiment = 'hindcast'
-outputdir = 'results/exp1'
-cwd = 'workflow/scripts/external/R'
+## ## FOR TESTING:
+## config = read_yaml('config/config.yml')
+## ## experiment = 'hindcast'
+## outputdir = 'results/exp1'
+## cwd = 'workflow/scripts/external/R'
 
-## ## Extract configuration info
-## if (sys.nframe() == 0L) {
-##   args = commandArgs(trailingOnly=TRUE)
-##   config = read_yaml(args[1])
-##   outputdir = args[2]
-##   args = commandArgs()
-##   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
-##   cwd <- dirname(regmatches(args, m))
-## }
+## Extract configuration info
+if (sys.nframe() == 0L) {
+  args = commandArgs(trailingOnly=TRUE)
+  config = read_yaml(args[1])
+  outputdir = args[2]
+  args = commandArgs()
+  m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
+  cwd <- dirname(regmatches(args, m))
+}
 source(file.path(cwd, "utils.R"))
 source(file.path(cwd, "plotting.R"))
 
-config = parse_config(config)
+config[["modelling"]] <- parse_config_modelling(config)
+## config = parse_config(config)
 ## output_root <- "data" # FIXME
 
 ## FOR TESTING
