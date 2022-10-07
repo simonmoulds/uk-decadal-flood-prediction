@@ -96,6 +96,10 @@ rule build_catchment_dataset:
         directory(ANALYSIS_DIRECTORY + '/{aggr}/input')
     params:
         outputdir=EXP1_DIRECTORY
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
     shell:
         """
         Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
@@ -111,6 +115,10 @@ rule fit_gamlss_models:
     params:
         method='cv',
         outputdir=EXP1_DIRECTORY
+    resources:
+        time = "01:00:00",
+        mem_mb = 4000,
+        partition = "short"
     shell:
         """
         Rscript {input.script} {input.config} {wildcards.expm} {wildcards.aggr} {params.method} {params.outputdir}
@@ -132,6 +140,10 @@ rule make_plots:
         'results/exp1/fig/figS4.png'
     params:
         outputdir='results/exp1'
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
     shell:
         """
         Rscript {input.script} {input.config} {params.outputdir}
