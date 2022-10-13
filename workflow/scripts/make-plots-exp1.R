@@ -18,21 +18,21 @@ library(yaml)
 options(dplyr.summarise.inform = FALSE)
 options(bitmapType = 'cairo') # For server
 
-## ## FOR TESTING:
-## config = read_yaml('config/config.yml')
-## ## experiment = 'hindcast'
-## outputdir = 'results/exp1'
-## cwd = 'workflow/scripts/external/R'
+## FOR TESTING:
+config = read_yaml('config/config.yml')
+## experiment = 'hindcast'
+outputdir = 'results/exp1'
+cwd = 'workflow/scripts'
 
-## Extract configuration info
-if (sys.nframe() == 0L) {
-  args = commandArgs(trailingOnly=TRUE)
-  config = read_yaml(args[1])
-  outputdir = args[2]
-  args = commandArgs()
-  m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
-  cwd <- dirname(regmatches(args, m))
-}
+## ## Extract configuration info
+## if (sys.nframe() == 0L) {
+##   args = commandArgs(trailingOnly=TRUE)
+##   config = read_yaml(args[1])
+##   outputdir = args[2]
+##   args = commandArgs()
+##   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
+##   cwd <- dirname(regmatches(args, m))
+## }
 source(file.path(cwd, "utils.R"))
 source(file.path(cwd, "plotting.R"))
 
@@ -45,14 +45,14 @@ config[["modelling"]] <- parse_config_modelling(config)
 ## aggregation_period_label = "Year 2"
 aggregation_period = "yr2to5_lag"
 aggregation_period_label = "Year 2-5"
-obs_aggregation_period = "yr2to9"
+obs_aggregation_period = "yr2to5"
 obs_aggregation_period_label = "Year 2-5"
 ## aggregation_period = "yr2"
 ## aggregation_period_label = "Year 2"
 ## obs_aggregation_period = "yr2"
 ## obs_aggregation_period_label = "Year 2"
 ## skill_measure = "msss"
-skill_measure = "acc"
+skill_measure = "crpss"
 
 ## ####################################################### ##
 ## ####################################################### ##
@@ -62,34 +62,57 @@ skill_measure = "acc"
 ## ####################################################### ##
 ## ####################################################### ##
 
-load_skill_scores <- function(config, experiment) {
-  ## skill_scores_list = list()
-  ## for (i in 1:length(datasets)) {
-  ## dataset = datasets[[i]]
-  ## dataset_dir = config$modelling[[dataset]]$input_dataset
-  aggregation_periods = config$modelling[[experiment]]$aggregation_periods
-  period_skill_scores_list = list()
-  for (i in 1:length(aggregation_periods)) {
-    period_skill_scores_list[[i]] = open_dataset(
-      file.path(outputdir, 'analysis', experiment, aggregation_periods[i], "skill")
-    ) %>% collect()
-  }
-  skill_scores = do.call("rbind", period_skill_scores_list) %>% as_tibble()
-  ## }
-  ## skill_scores = do.call("rbind", skill_scores_list) %>% as_tibble()
-  skill_scores
+## y = seq(0.05, 2, by = 0.05)
+## q = 1
+## E = y + (q ** 2) / (2 * 9.81 * y ** 2)
+
+load_skill_scores <- function(config, experiment, aggregation_period) {
+  ds <- open_dataset(
+    file.path(outputdir, "analysis", experiment, "gamlss", aggregation_period)
+  ) %>% collect()
+  skill <- ds %>%
+    group_by(ID, model, subset) %>%
+    summarize(
+      crps_fcst = mean(crps_fcst),
+      crps_ens_fcst = mean(crps_ens_fcst),
+      crps_climat = mean(crps_climat),
+      aic=mean(aic)
+    ) %>%
+    mutate(crpss = 1 - (crps_fcst / crps_climat)) %>%
+    mutate(period = aggregation_period)
+  return(skill)
 }
+
+## load_skill_scores <- function(config, experiment) {
+##   ## skill_scores_list = list()
+##   ## for (i in 1:length(datasets)) {
+##   ## dataset = datasets[[i]]
+##   ## dataset_dir = config$modelling[[dataset]]$input_dataset
+##   aggregation_periods = config$modelling[[experiment]]$aggregation_periods
+##   period_skill_scores_list = list()
+##   for (i in 1:length(aggregation_periods)) {
+##     period_skill_scores_list[[i]] = open_dataset(
+##       file.path(outputdir, 'analysis', experiment, aggregation_periods[i], "skill")
+##     ) %>% collect()
+##   }
+##   skill_scores = do.call("rbind", period_skill_scores_list) %>% as_tibble()
+##   ## }
+##   ## skill_scores = do.call("rbind", skill_scores_list) %>% as_tibble()
+##   skill_scores
+## }
+
+## TODO change the way that model names are specified (i.e. not 'GAMLSS_GAMLSS_P_best_n')
 
 obs_model_levels <- c("STATIONARY", "TIME", "NAO", "NAO_P", "P", "P_T", "NAO_P_T")
 obs_model_labels <- c("STATIONARY", "TIME", "NAO", "NAOP", "P", "PT", "NAOPT")
-obs_skill_scores <- load_skill_scores(config, "observed") %>%
+obs_skill_scores <- load_skill_scores(config, "observed", obs_aggregation_period) %>%
   filter(model %in% obs_model_levels) %>%
   mutate(model = factor(model, levels = obs_model_levels, labels = obs_model_labels))
 
 model_levels <- c("NAO", "NAO_P", "P", "P_T", "NAO_P_T")
 model_labels <- c("NAO", "NAOP", "P", "PT", "NAOPT")
 skill_scores <-
-  load_skill_scores(config, "hindcast") %>%
+  load_skill_scores(config, "hindcast", aggregation_period) %>%
   filter(model %in% model_levels) %>%
   mutate(model = factor(model, levels = model_levels, labels = model_labels))
 station_ids <- skill_scores$ID %>% unique()
@@ -461,6 +484,8 @@ p =
 
 ## Include both modelled and observed results
 ggsave(file.path(outputdir, "fig/fig1_alt2.png"), plot = p, width = 6, height = 6, units = "in")
+
+stop()
 
 ## ####################################################### ##
 ## ####################################################### ##

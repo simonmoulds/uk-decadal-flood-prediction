@@ -342,40 +342,40 @@ def _extract_ts(x, xmin, xmax, ymin, ymax):
     )
     return ts
 
-# ENSO indices require SST
-def _extract_enso1_ts(x):
-    enso1 = _extract_ts(x, -90, -80, -10, -5)
-    return enso1
+# # NINO indices require SST
+# def _extract_nino1_ts(x):
+#     nino1 = _extract_ts(x, -90, -80, -10, -5)
+#     return nino1
 
-def _extract_enso2_ts(x):
-    enso2 = _extract_ts(x, -90, -80, -5, 0)
-    return enso2
+# def _extract_nino2_ts(x):
+#     nino2 = _extract_ts(x, -90, -80, -5, 0)
+#     return nino2
 
-def _extract_enso12_ts(x):
-    enso12 = _extract_ts(x, -90, -80, -10, 0)
-    return enso12
+# def _extract_nino12_ts(x):
+#     nino12 = _extract_ts(x, -90, -80, -10, 0)
+#     return nino12
 
-def _extract_enso3_ts(x):
-    enso3 = _extract_ts(x, -150, -90, -5, 5)
-    return enso3
+# def _extract_nino3_ts(x):
+#     nino3 = _extract_ts(x, -150, -90, -5, 5)
+#     return nino3
 
-def _extract_enso34_ts(x):
-    enso34 = _extract_ts(x, -170, -120, -5, 5)
-    return enso34
+# def _extract_nino34_ts(x):
+#     nino34 = _extract_ts(x, -170, -120, -5, 5)
+#     return nino34
 
-def _extract_enso4_ts(x):
-    enso4 = _extract_ts(x, 160, -150, -5, 5)
-    return enso4
+# def _extract_nino4_ts(x):
+#     nino4 = _extract_ts(x, 160, -150, -5, 5)
+#     return nino4
 
-def _extract_iod_ts(x):
-    iod_west = _extract_ts(x, 50, 70, -10, 10)
-    iod_east = _extract_ts(x, 90, 110, -10, 0)
-    return iod_west - iod_east
+# def _extract_iod_ts(x):
+#     iod_west = _extract_ts(x, 50, 70, -10, 10)
+#     iod_east = _extract_ts(x, 90, 110, -10, 0)
+#     return iod_west - iod_east
 
-def _extract_pdv_ts(x):
-    tropical = _extract_ts(x, -160, -110, -10, 6)
-    northern = _extract_ts(x, -180, -145, 30, 45)
-    return tropical - northern
+# def _extract_pdv_ts(x):
+#     tropical = _extract_ts(x, -160, -110, -10, 6)
+#     northern = _extract_ts(x, -180, -145, 30, 45)
+#     return tropical - northern
 
 def _extract_nao_ts(x):
     iceland_ts = _extract_ts(x, -25, -16, 63, 70)
@@ -508,23 +508,24 @@ def _convert_ncdc(ncdc_filename):
     ds.close()
 
 def _extract_index(ds, index_name, column_name = None):
-    if index_name == "enso1":
-        ds_index = _extract_enso1_ts(ds)
-    elif index_name == "enso2":
-        ds_index = _extract_enso2_ts(ds)
-    elif index_name == "enso12":
-        ds_index = _extract_enso12_ts(ds)
-    elif index_name == "enso3":
-        ds_index = _extract_enso3_ts(ds)
-    elif index_name == "enso34":
-        ds_index = _extract_enso34_ts(ds)
-    elif index_name == "enso4":
-        ds_index = _extract_enso4_ts(ds)
-    elif index_name == "iod":
-        ds_index = _extract_iod_ts(ds)
-    elif index_name == "pdv":
-        ds_index = _extract_pdv_ts(ds)
-    elif index_name == "nao":
+    # if index_name == "enso1":
+    #     ds_index = _extract_enso1_ts(ds)
+    # elif index_name == "enso2":
+    #     ds_index = _extract_enso2_ts(ds)
+    # elif index_name == "enso12":
+    #     ds_index = _extract_enso12_ts(ds)
+    # elif index_name == "enso3":
+    #     ds_index = _extract_enso3_ts(ds)
+    # elif index_name == "enso34":
+    #     ds_index = _extract_enso34_ts(ds)
+    # elif index_name == "enso4":
+    #     ds_index = _extract_enso4_ts(ds)
+    # elif index_name == "iod":
+    #     ds_index = _extract_iod_ts(ds)
+    # elif index_name == "pdv":
+    #     ds_index = _extract_pdv_ts(ds)
+    # elif index_name == "nao":
+    if index_name == "nao":
         ds_index = _extract_nao_ts(ds)
     elif index_name == "ea":
         ds_index = _extract_ea_ts(ds)
@@ -606,14 +607,14 @@ def _observed_preprocessor(inputdir, outputdir, config):
     # Sea-surface temperature
     # ####################### #
 
-    ds = iris.load_cube(hadsst_filename, 'sst')
-    enso1_df = _extract_index(ds, "enso1")
-    enso2_df = _extract_index(ds, "enso2")
-    enso3_df = _extract_index(ds, "enso3")
-    enso34_df = _extract_index(ds, "enso34")
-    enso4_df = _extract_index(ds, "enso4")
-    iod_df = _extract_index(ds, "iod")
-    pdv_df = _extract_index(ds, "pdv")
+    # ds = iris.load_cube(hadsst_filename, 'sst')
+    # enso1_df = _extract_index(ds, "enso1")
+    # enso2_df = _extract_index(ds, "enso2")
+    # enso3_df = _extract_index(ds, "enso3")
+    # enso34_df = _extract_index(ds, "enso34")
+    # enso4_df = _extract_index(ds, "enso4")
+    # iod_df = _extract_index(ds, "iod")
+    # pdv_df = _extract_index(ds, "pdv")
 
     # ####################### #
     # Mean sea-level pressure #
