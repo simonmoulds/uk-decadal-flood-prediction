@@ -609,7 +609,8 @@ create_ensemble_forecast <- function(ensemble_fcst_error,
 make_prediction <- function(newdata,
                             data,
                             ...,
-                            quantiles = c(0.5, 0.25, 0.75, 0.05, 0.95),
+                            ## quantiles = c(0.5, 0.25, 0.75, 0.05, 0.95),
+                            quantiles = seq(0.01, 0.99, 0.01),
                             model_family,
                             obs,
                             ref_prediction) {
@@ -690,8 +691,11 @@ make_prediction <- function(newdata,
       }
       tbl[["crps_climat"]] = EnsCrps(ref_prediction_mat, obs)
 
-      ## Get AIC
-      tbl[["aic"]] = AIC(models[[nm]])
+      ## ## Get AIC
+      ## tbl[["aic"]] = AIC(models[[nm]])
+
+      ## ## ## Check residuals
+      ## ## checks <- check_residuals(models[[nm]])
 
       ## Predict quantiles using mu and sigma
       for (j in 1:length(quantile_names)) {
@@ -705,6 +709,9 @@ make_prediction <- function(newdata,
       tbl[["sigma"]] = NA
       tbl[["shape"]] = NA
       tbl[["scale"]] = NA
+      tbl[["crps_fcst"]] = NA
+      tbl[["crps_ens_fcst"]] = NA
+      tbl[["crps_climat"]] = NA
       for (qnm in quantile_names) {
         tbl[[qnm]] = NA
       }
@@ -739,6 +746,9 @@ fit_models_cv <- function(x,
     train_data = x[train_idx,]
     test_data = x[test_idx,]
 
+    ## TEST
+    year <- test_data$year
+
     ## N.B. because we use a function to fit models the data.frame
     ## used in the original fit is not stored in the model call
     ## correctly. This means that when we call `predict.gamlss`
@@ -756,8 +766,7 @@ fit_models_cv <- function(x,
     obs = test_data[["Q"]]
     prediction = do.call(
       "make_prediction",
-      c(list(newdata = test_data,
-             data = train_data),
+      c(list(newdata = test_data, data = train_data),
         models,
         list(model_family = config_section$model_family,
              obs = obs,
@@ -778,25 +787,11 @@ fit_models_cv <- function(x,
       ) %>%
       mutate(
         date = NA,
-        model = paste0("GAMLSS_", model)
+        year = year
+        ## model = paste0("GAMLSS_", model)
       ) #%>%
       ## dplyr::select(all_of(c(obs_column_name, exp_column_name)), year, model)
 
-    ## ## Compute CRPS
-    ## crps_fcst <- scoringRules::crps_gamma(
-    ##                              y=prediction[[obs_column_name]],
-    ##                              shape=prediction[["shape"]],
-    ##                              scale=prediction[["scale"]]
-    ##                            )
-
-    ## crps_climat <- scoringRules::crps_gamma(
-    ##                                y=prediction[[climat_column_name]],
-    ##                                shape=prediction[["shape"]],
-    ##                                scale=prediction[["scale"]]
-    ##                              )
-    ## crpss <- 1 - (crps_fcst / crps)
-    ## prediction =
-    ##   prediction
     pred_idx = length(catchment_prediction_list) + 1
     catchment_prediction_list[[pred_idx]] = prediction
   }
@@ -881,8 +876,7 @@ fit_models_forward_chain <- function(x,
 fit_models <- function(formulas,
                        sigma_formulas,
                        model_family,
-                       data, # train data
-                       newdata, # test data
+                       data,
                        ...) {
 
   model_names = names(formulas)
@@ -899,7 +893,7 @@ fit_models <- function(formulas,
       gamlss(
         formula = formulas[[i]],
         sigma.formula = sigma_formulas[[i]],
-        family = GA, #model_family,
+        family = GA,
         trace = FALSE,
         data = data,
         ...
@@ -907,32 +901,7 @@ fit_models <- function(formulas,
     )
     if (inherits(model, "try-error")) {
       model = NULL
-    } #else {
-    ## prediction = do.call(
-    ##   "make_prediction",
-    ##   c(list(newdata = test_data, data = train_data), models, list(model_family=config_section$model_family))
-    ## )
-    ## ## Create output data frame
-    ## ## Create output data frame
-    ## obs = test_data[["Q"]]
-    ## obs_column_name = paste0(config_section$predictand, '_obs')
-    ## exp_column_name = paste0(config_section$predictand, '_exp')
-    ## ## N.B. Q50 is the median of the probabilistic forecast, not the streamflow quantile
-    ## prediction =
-    ##   prediction %>%
-    ##   mutate(
-    ##     !!obs_column_name := obs,
-    ##     !!exp_column_name := Q50
-    ##   ) %>%
-    ##   mutate(
-    ##     date = NA,
-    ##     model = paste0("GAMLSS_", model)
-    ##   ) #%>%
-    ##   ## dplyr::select(all_of(c(obs_column_name, exp_column_name)), year, model)
-    ## pred_idx = length(catchment_prediction_list) + 1
-    ## catchment_prediction_list[[pred_idx]] = prediction
-    ## ## END SECTION
-    ## }
+    }
     fitted_models[[model_nm]] = model
   }
   fitted_models
@@ -940,10 +909,39 @@ fit_models <- function(formulas,
 
 get_aic <- function(model_list) {
   aic = sapply(
-    models,
+    model_list,
     FUN=function(x) ifelse(is.null(x), NA, AIC(x))
   ) %>% as_tibble_row()
   aic
+}
+
+check_residuals <- function (x) {
+  if (!is.gamlss(x))
+    stop(paste("This is not an gamlss object", "\n", ""))
+  if (is.null(x$residuals)) #
+    stop(paste("There are no quantile residuals in the object"))
+  residx <- resid(x) # get the residuals
+  w <- x$weights
+  qq <- as.data.frame(qqnorm(residx, plot = FALSE))
+  Filliben <- cor(qq$y,qq$x)
+  m.1 <- mean(residx)
+  m.2 <- var(residx) # cov.wt(mr,w)$cov
+  n.obs <- sum(w)
+  m.3 <- sum((residx-m.1)**3)/n.obs
+  m.4 <- sum((residx-m.1)**4)/n.obs
+  b.1 <- m.3^2/m.2^3
+  sqrtb.1 <- sign(m.3)*sqrt(abs(b.1))
+  b.2 <- m.4/m.2^2
+  return(list(mean=m.1, variance=m.2, skewness=sqrtb.1, kurtosis=b.2, filliben=Filliben, nobs=n.obs))
+}
+
+get_residual_checks <- function(model_list) {
+  rows <- list()
+  for (i in 1:length(model_list)) {
+    nm <- names(model_list)[i]
+    rows[[i]] <- check_residuals(model_list[[i]]) %>% as_tibble_row() %>% mutate(model = nm)
+  }
+  return(do.call("rbind", rows))
 }
 
 mean_square_error_skill_score <- function(obs, exp) {

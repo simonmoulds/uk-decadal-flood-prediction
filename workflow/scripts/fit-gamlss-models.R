@@ -14,7 +14,7 @@ options(dplyr.summarise.inform = FALSE)
 ## ## FOR TESTING:
 ## config = read_yaml('config/config.yml')
 ## experiment = 'observed'
-## aggregation_period = 'yr2to9'
+## aggregation_period = 'yr2to5_lag'
 ## method = 'cv'
 ## outputroot = 'results/exp1'
 ## cwd = 'workflow/scripts/'
@@ -41,6 +41,8 @@ output_dir = file.path(outputroot, "analysis", experiment, "gamlss", aggregation
 if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
 }
+dir.create(file.path(output_dir, "prediction"))
+dir.create(file.path(output_dir, "fit"))
 
 metadata = catalogue()
 experiment_conf = config$modelling[[experiment]]
@@ -137,15 +139,32 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
       n_fold = nrow(xx)
       catchment_prediction_list = list()
 
-      ## ## Fit models on all data to extract AIC
-      ## models = fit_models(
-      ##   experiment_conf$formulas,
-      ##   experiment_conf$sigma_formulas,
-      ##   experiment_conf$model_family,
-      ##   xx
-      ## )
-      ## aic = get_aic(models)
+      ## Fit models on all data to assess information about fit
+      models = fit_models(
+        experiment_conf$formulas,
+        experiment_conf$sigma_formulas,
+        experiment_conf$model_family,
+        xx
+      )
+      aic = get_aic(models)
+      aic <-
+        aic %>%
+        pivot_longer(everything(), names_to = "model", values_to = "aic")
+      residual_checks <- get_residual_checks(models)
 
+      ## Write fit summary
+      residual_checks %>%
+        left_join(aic, by = "model") %>%
+        mutate(
+          ID = stn_id,
+          subset = subset
+        ) %>%
+        group_by(ID, model, subset) %>%
+        write_dataset(
+          file.path(output_dir, "fit"), format = "parquet"
+        )
+
+      ## Now run prediction, using either forward chain or cv
       if (method == "forward") {
         lead_time <- config$aggregation_period[[aggregation_period]]$lead_time
         catchment_prediction <- fit_models_forward_chain(
@@ -171,75 +190,89 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
       if (is.null(catchment_prediction)) {
         next
       }
-
-      catchment_prediction <- catchment_prediction %>% mutate(ID = stn_id)
-      ## ## Make complete time series
-      ## complete_ts = expand_grid(
-      ##   ID = stn_id,
-      ##   ## clim_season = "DJFM",
-      ##   year = experiment_conf$study_period,
-      ##   model = unique(catchment_prediction$model)#,
-      ##   ## predictand = experiment_conf$predictand
-      ## )
-
-      ## catchment_prediction =
-      ##   complete_ts %>%
-      ##   left_join(
-      ##     catchment_prediction,
-      ##     ## by=c("ID", "clim_season", "year", "model", "predictand")
-      ##     by=c("ID", "year", "model", "predictand")
-      ##   ) %>%
-      ##   mutate(period = aggregation_period, subset = subsets[m], .after = predictand) %>%
-      ##   ## mutate(lead_time = lead_tm, .before = model) %>%
-      ##   filter(year %in% experiment_conf$study_period) %>%
-      ##   arrange(year, model)
-
       ## Write output
       catchment_prediction %>%
         mutate(
+          ID = stn_id,
           date = NA,
-          model = paste0("GAMLSS_", model, "_", subset),
           subset = subset
         ) %>%
         group_by(ID, model, subset) %>% #predictand, subset) %>%
-        write_dataset(output_dir, format = "parquet")
-        ## write_dataset(file.path(output_dir, "prediction"), format = "parquet")
-
-      ## model_nms = distinct(catchment_prediction, model)$model
-      ## ## Evaluate model skill
-      ## skill_scores_list = list()
-      ## for (p in 1:length(model_nms)) {
-      ##   model_nm = model_nms[p]
-      ##   pred =
-      ##     catchment_prediction %>%
-      ##     filter(model %in% model_nm) %>%
-      ##     na.omit()
-      ##   skill =
-      ##     mean_square_error_skill_score(pred$obs, pred$exp) %>%
-      ##     as_tibble() %>%
-      ##     mutate(
-      ##       ID = stn_id,
-      ##       model = model_nm,
-      ##       ## lead_time = lead_tm,
-      ##       predictand = experiment_conf$predictand,
-      ##       period = aggregation_period,
-      ##       subset = subsets[m],
-      ##       .before = "msss"
-      ##     )
-      ##   idx = length(skill_scores_list) + 1
-      ##   skill_scores_list[[idx]] = skill
-      ## }
-      ## skill_scores = do.call("rbind", skill_scores_list)
-      ## aic = aic %>% pivot_longer(everything(), names_to = "model", values_to = "aic")
-      ## skill_scores = left_join(skill_scores, aic, by = "model")
-      ## skill_scores %>%
-      ##   group_by(ID, predictand, subset) %>%
-      ##   write_dataset(file.path(output_dir, "skill"), format = "parquet")
+        write_dataset(
+          file.path(output_dir, "prediction"), format = "parquet"
+        )
     }
     setTxtProgressBar(pb, k)
   }
   close(pb)
-
 } else {
   warning(paste0("Aggregation period ", aggregation_period, " not specified for experiment ", experiment))
 }
+
+## TESTS
+## Compare custom implementation of crpss with that in easyVerification
+## ds <- open_dataset("results/exp1/analysis/hindcast/gamlss/yr2to5_lag/prediction/") %>% collect()
+## ids <- ds$ID %>% unique()
+## models <- ds$model %>% unique()
+## subsets <- ds$subset %>% unique()
+## years <- ds$year %>% unique() %>% sort()
+
+## ## Forecast dimensions
+## n_space <- length(ids)
+## n_members <- 99
+## n_time <- ds$year %>% unique() %>% length()
+
+## ## for (i in 1:length(ids)) {
+## for (i in 1:length(models)) {
+##   for (j in 1:length(subsets)) {
+##     fcst <- array(data=NA, dim=c(n_space, n_time, n_members))
+##     obs <- array(data=NA, dim=c(n_space, n_time))
+##     crpss <- rep(NA, length(ids))
+##     for (k in 1:length(ids)) {
+##       x <-
+##         ds %>%
+##         filter(model %in% models[i] & subset %in% subsets[j] & ID %in% ids[k]) %>%
+##         dplyr::select(year, Q_95_obs, Q01:Q99) %>%
+##         arrange(year)
+##       x <- tibble(year = years) %>% left_join(x, by = "year")
+##       fcst_k <- x %>% dplyr::select(Q01:Q99) %>% as.matrix() %>% na.omit()
+##       obs_k <- x %>% dplyr::select(Q_95_obs) %>% as.matrix() %>% na.omit()
+##       ## fcst[k,,] <- fcst_k
+##       ## obs[k,] <- obs_k
+##       crpss[k] <- veriApply("FairCrpss", fcst=fcst_k, obs=obs_k, strategy=list(type="crossval", blocklength=7), na.rm=TRUE)$skillscore
+##     }
+##     ## crpss <- veriApply("FairCrpss", fcst=fcst, obs=obs, strategy=list(type="crossval", blocklength=13), na.rm=T)
+##   }
+## }
+
+## ds <- open_dataset("results/exp1/analysis/hindcast/gamlss/yr2to5_lag/prediction/") %>% collect()
+## ids <- ds$ID %>% unique()
+## models <- c("P", "P_T")
+## subsets <- c("best_n", "full")
+
+## comp <- list()
+## for (i in 1:length(models)) {
+##   for (j in 1:length(subsets)) {
+##     for (k in 1:length(ids)) {
+##       x <- ds %>% filter(model %in% models[i], subset %in% subsets[j], ID %in% ids[k])
+##       ## plot(ds$Q_95_obs)
+##       ## lines(ds$Q_95_exp)
+##       ## lines(ds$Q25, lty="dashed")
+##       ## lines(ds$Q85, lty="dashed")
+##       fcst <- x %>% dplyr::select(Q01:Q99) %>% as.matrix() %>% na.omit()
+##       obs <- x %>% dplyr::select(Q_95_obs) %>% as.matrix() %>% na.omit()
+##       ev_crpss <- veriApply(
+##         "FairCrpss",
+##         fcst=fcst,
+##         obs=obs,
+##         strategy=list(type="crossval", blocklength=7),
+##         na.rm=TRUE
+##       )
+##       my_crpss <- 1 - (mean(x$crps_fcst) / mean(x$crps_climat))
+##       comp[[length(comp) + 1]] <- data.frame(id=ids[k], subset=subsets[j], model=models[i], ev_crpss=ev_crpss$skillscore, my_crpss=my_crpss)
+##     }
+##   }
+## }
+
+## df <- do.call("rbind", comp)
+## df <- df %>% filter(subset %in% "best_n") %>% group_by(id) %>% filter(my_crpss==max(my_crpss))

@@ -14,7 +14,7 @@ options(dplyr.summarise.inform = FALSE)
 ## config = read_yaml("config/config.yml")
 ## obspath = "results/intermediate/obs.parquet"
 ## aggr_period = "yr2to9_lag"
-## outputroot = "results/exp2"
+## outputroot = "results/exp1"
 ## cwd = "workflow/scripts"
 
 if (sys.nframe() == 0L) {

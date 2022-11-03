@@ -33,7 +33,8 @@ myplotfun1 <- function(x, legend_title = "MSSS") {
     geom_sf(
       data = x,
       aes(fill = skill, shape = model),
-      size = 1.5,
+      ## size = 1.5,
+      size = 2,
       lwd = 0.1,
       alpha = 0.8
     ) +
@@ -73,7 +74,7 @@ myplotfun1 <- function(x, legend_title = "MSSS") {
         order = 1
       ),
       fill = guide_colorbar(
-        title="MSSS",
+        title=legend_title, #"MSSS",
         title.position="top",
         frame.colour = "black",
         ticks.colour = "black",
@@ -199,7 +200,8 @@ myplotfun22 <- function(x, legend_title = "MSSS") {
     ## ) +
     geom_text(data = x_median, aes(x = interaction(subset, model), y = md, label = md_label), nudge_y = 0.05, size = 2) +
     ## geom_text(data = skill_scores_median, aes(x = model, y = -0.2, label = n), nudge_y = 0.03, size = 1.5) +
-    geom_text(data = x_median, aes(x = interaction(subset, model), y = -0.25, label = n), nudge_y = -0.05, size = 2, fontface = "italic") +
+    ## geom_text(data = x_median, aes(x = model, y = -0.7, label = n), nudge_y = -0.05, size = 2, fontface = "italic") +
+    ## geom_text(data = x_median, aes(x = interaction(subset, model), y = -0.7, label = n), nudge_y = -0.05, size = 2, fontface = "italic") +
     ## scale_x_discrete(name = "") +
     scale_x_discrete(name = "", labels = rep(levels(x$model), each = 2)) +
     scale_y_continuous(
@@ -207,7 +209,9 @@ myplotfun22 <- function(x, legend_title = "MSSS") {
       ## breaks=seq(-0.2, 1, by=0.2),
       ## limits=c(-0.3, 1.1)
       breaks=seq(-1, 1, by=0.2),
-      limits=c(-1, 1)
+      ## limits=c(-1, 1)
+      limits=c(-0.8, 0.8)
+      ## limits=c(-0.7, 0.7)
     ) +
     theme_bw() +
     theme(
@@ -217,6 +221,7 @@ myplotfun22 <- function(x, legend_title = "MSSS") {
     )
   p
 }
+
 myplotfun3 <- function(x) {
   rdbu_pal = RColorBrewer::brewer.pal(9, "RdBu")
   cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
@@ -302,12 +307,14 @@ myplotfun444 <- function(x, legend_title = "MSSS") {
     ## ) +
     geom_text(data = x_median, aes(x = model, y = md, label = md_label), nudge_y = 0.05, size = 2) +
     ## geom_text(data = skill_scores_median, aes(x = model, y = -0.2, label = n), nudge_y = 0.03, size = 1.5) +
-    geom_text(data = x_median, aes(x = model, y = -0.625, label = n), nudge_y = -0.05, size = 2, fontface = "italic") +
+    ## geom_text(data = x_median, aes(x = model, y = -0.7, label = n), nudge_y = -0.05, size = 2, fontface = "italic") +
     scale_x_discrete(name = "") +
     scale_y_continuous(
       name=paste0("\u0394 ", legend_title),
-      breaks=c(-0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6),
-      limits=c(-0.7, 0.7)
+      ## breaks=c(-0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6),
+      breaks=seq(-1, 1, by=0.2),
+      ## limits=c(-0.7, 0.7)
+      limits=c(-0.8, 0.8)
     ) +
     theme_bw() +
     theme(
@@ -333,12 +340,21 @@ myplotfun5 <- function(x, legend_title = "MSSS") {
     ) +
     geom_sf(
       data = x,
-      aes(fill = skill),
-      shape = 21,
+      aes(fill = skill, shape = model),
+      ## size = 1.5,
       size = 1.5,
       lwd = 0.1,
       alpha = 0.8
     ) +
+    ## geom_sf(
+    ##   data = x,
+    ##   aes(fill = skill),
+    ##   shape = 21,
+    ##   ## size = 1.5,
+    ##   size = 2,
+    ##   lwd = 0.1,
+    ##   alpha = 0.8
+    ## ) +
     facet_wrap(. ~ period, ncol = 1) +
     coord_sf(
       xlim = c(-8, 2),
@@ -369,6 +385,7 @@ myplotfun5 <- function(x, legend_title = "MSSS") {
       axis.text = element_text(size = axis_label_size_small)
     ) +
     guides(
+      ## shape = "none",
       shape = guide_legend(
         title = "Model",
         title.position = "top",
@@ -489,6 +506,7 @@ myplotfun888 <- function(x) {
       aes(fill = anom), #, shape = model),
       shape = 21,
       size = 1.5,
+      ## size = 2,
       lwd = 0.1,
       alpha = 0.8
     ) +
@@ -532,8 +550,10 @@ myplotfun888 <- function(x) {
         frame.colour = "black",
         ticks.colour = "black",
         frame.linewidth = 0.25,
-        ticks.linewidth = 0.25,
-        barwidth = 12,
+        ticks = FALSE,
+        ## ticks.linewidth = 0.25,
+        barwidth = 16,
+        ## barwidth = 12,
         barheight = 0.75,
         order = 2
       )
@@ -543,7 +563,8 @@ myplotfun888 <- function(x) {
 
 myplotfun9 <- function(x, legend_title = "MSSS") {
   ## p = ggplot(x, aes(x = msss_diff, y=obs_msss, color = model)) +
-  p = ggplot(x, aes(x = obs_skill, y = skill_diff, color = model)) +
+  ## p = ggplot(x, aes(x = obs_skill, y = skill_diff, color = model)) +
+  p = ggplot(x, aes(x = R2, y = skill_diff, color = model)) +
     geom_point()  +
     scale_y_continuous(
       name=paste0("\u0394 ", legend_title, " (Predictions)"),
@@ -552,8 +573,10 @@ myplotfun9 <- function(x, legend_title = "MSSS") {
     ) +
     scale_x_continuous(
       name=paste0(legend_title, " (Observations)"),
-      breaks=c(-0.2, 0, 0.2, 0.4, 0.6, 0.8),
-      limits=c(-0.2, 0.9)
+      ## breaks=c(-0.2, 0, 0.2, 0.4, 0.6, 0.8),
+      ## limits=c(-0.2, 0.8)
+      breaks=seq(0, 1, by = 0.2),
+      limits=c(0, 1)
     ) +
     theme_bw()
   p

@@ -18,22 +18,22 @@ library(yaml)
 options(dplyr.summarise.inform = FALSE)
 options(bitmapType = 'cairo') # For server
 
-## ## FOR TESTING:
-## config = read_yaml('config/config.yml')
-## aggregation_period = "yr2to5_lag"
-## outputroot = 'results/exp1'
-## cwd = 'workflow/scripts'
+## FOR TESTING:
+config = read_yaml('config/config.yml')
+aggregation_period = "yr2to5_lag"
+outputroot = 'results/exp1'
+cwd = 'workflow/scripts'
 
-## Extract configuration info
-if (sys.nframe() == 0L) {
-  args = commandArgs(trailingOnly=TRUE)
-  config = read_yaml(args[1])
-  aggregation_period = args[2]
-  outputroot = args[3]
-  args = commandArgs()
-  m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
-  cwd <- dirname(regmatches(args, m))
-}
+## ## Extract configuration info
+## if (sys.nframe() == 0L) {
+##   args = commandArgs(trailingOnly=TRUE)
+##   config = read_yaml(args[1])
+##   aggregation_period = args[2]
+##   outputroot = args[3]
+##   args = commandArgs()
+##   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
+##   cwd <- dirname(regmatches(args, m))
+## }
 source(file.path(cwd, "utils.R"))
 source(file.path(cwd, "plotting.R"))
 config[["modelling"]] <- parse_config_modelling(config)
@@ -83,8 +83,7 @@ load_skill_scores <- function(config, experiment, aggregation_period) {
       crps_climat = mean(crps_climat),
       aic=mean(aic)
     ) %>%
-    ## mutate(crpss = 1 - (crps_fcst / crps_climat)) %>%
-    mutate(crpss = 1 - (crps_ens_fcst / crps_climat)) %>% # TODO check
+    mutate(crpss = 1 - (crps_fcst / crps_climat)) %>%
     mutate(period = aggregation_period)
   return(skill)
 }
@@ -103,22 +102,13 @@ skill_scores <-
   mutate(model = factor(model, levels = model_levels, labels = model_labels))
 station_ids <- skill_scores$ID %>% unique()
 
-## Find out which observed stations are positive
-obs_ids <- obs_skill_scores %>% filter(model %in% c("P", "PT")) %>% group_by(ID) %>% filter(crpss==max(crpss)) %>% filter(crpss>0) %>% `$`(ID)
-full_ens_ids <- skill_scores %>% filter(model %in% c("P", "PT") & subset %in% "full") %>% group_by(ID) %>% filter(crpss==max(crpss)) %>% filter(crpss>0) %>% `$`(ID)
-nao_matched_ids <- skill_scores %>% filter(model %in% c("P", "PT") & subset %in% "best_n") %>% group_by(ID) %>% filter(crpss==max(crpss)) %>% filter(crpss>0) %>% `$`(ID)
-
-## Percent full ens in obs
-sum(obs_ids %in% full_ens_ids) / length(obs_ids)
-sum(obs_ids %in% nao_matched_ids) / length(obs_ids)
-
 ## Overall statistic
 ## % stations with +ve MSSS
 stat <-
   skill_scores %>%
   filter(period %in% aggregation_period & model %in% c("P", "PT")) %>%
   group_by(ID, subset) %>%
-  filter(crpss == max(crpss)) %>% #aic == min(aic)) %>%
+  filter(aic == min(aic)) %>%
   ungroup() %>%
   group_by(subset) %>%
   ## summarize(pct_positive = sum(msss > 0) / n() * 100)
@@ -161,8 +151,7 @@ myfun = function(x, skill_measure = "crpss") {
   x_best =
     x %>%
     group_by(ID, subset, period) %>%
-    ## filter(aic == min(aic))
-    filter(!!sym(skill_measure) == max(!!sym(skill_measure)))
+    filter(aic == min(aic))
   skill =
     gauge_stns %>%
     left_join(x_best) %>%
@@ -180,7 +169,7 @@ myfun = function(x, skill_measure = "crpss") {
 
 skill_scores_subset =
   skill_scores %>%
-  filter(model %in% c("P", "PT", "NAOPT")) %>%
+  filter(model %in% c("P", "PT")) %>% #, "NAOPT")) %>%
   filter(subset %in% "full", period %in% aggregation_period) %>%
   mutate(period = factor(period, levels = aggregation_period, labels = aggregation_period_label)) %>%
   mutate(skill = !!sym(skill_measure))
@@ -196,14 +185,6 @@ skill2 = myfun(skill_scores_subset %>% filter(!model %in% "NAOPT"), skill_measur
 
 ## Number of stations with positive skill across models
 skill_scores_subset %>%
-  filter(model %in% c("P", "PT")) %>%
-  group_by(ID) %>%
-  filter(crpss == max(crpss)) %>%
-  ungroup() %>%
-  summarize(n = sum(crpss > 0))
-
-obs_skill_scores %>%
-  filter(model %in% c("P", "PT")) %>%
   group_by(ID) %>%
   filter(crpss == max(crpss)) %>%
   ungroup() %>%
@@ -235,7 +216,7 @@ table(skill1$model)[["P"]]
 
 p1 = myplotfun1(na.omit(skill1), legend_title = toupper(skill_measure))
 p2 = myplotfun1(na.omit(skill2), legend_title = toupper(skill_measure))
-p3 = myplotfun2(skill_scores_subset, legend_title = toupper(skill_measure))
+## p3 = myplotfun2(skill_scores_subset, legend_title = toupper(skill_measure))
 
 ## Add number of stations which perform best by model
 n_naopt <- table(skill1$model)[["NAOPT"]]
@@ -281,8 +262,8 @@ obs_skill_scores_subset <-
   filter(model %in% c("P", "PT", "NAOPT")) %>%
   filter(period %in% obs_aggregation_period) %>%
   mutate(period = factor(period, levels = obs_aggregation_period, labels = obs_aggregation_period_label)) %>%
-  mutate(skill = !!sym(skill_measure)) #%>%
-  ## filter(!ID %in% 25003)
+  mutate(skill = !!sym(skill_measure)) %>%
+  filter(!ID %in% 25003)
 
 obs_skill_scores_median <-
   obs_skill_scores_subset %>%
@@ -425,7 +406,7 @@ p =
 ggsave(file.path(output_dir, "fig1_alt1.png"), plot = p, width = 6, height = 8, units = "in")
 
 ## Alternative without boxplots and with all models:
-p = p2 + p5 + plot_layout(widths = c(2, 2), ncol = 2, nrow = 1)
+p = p1 + p4 + plot_layout(widths = c(2, 2), ncol = 2, nrow = 1)
 p = p +
   plot_layout(guides = "collect") &
   theme(legend.position = "bottom",
@@ -451,20 +432,14 @@ ggsave(file.path(output_dir, "fig1_alt2.png"), plot = p, width = 6, height = 6, 
 ## ####################################################### ##
 ## ####################################################### ##
 ##
-## Figure 1: GRL version
+## Figure 1: Presentation version
 ##
 ## ####################################################### ##
 ## ####################################################### ##
 
-## Find out how many stations PT has the best performing model
-n_pt_mod <- skill_scores_subset %>% filter(!model %in% "NAOPT") %>% group_by(ID) %>% filter(crpss == max(crpss))
-table(n_pt_mod$model)
-n_pt_obs <- obs_skill_scores_subset %>% filter(!model %in% "NAOPT") %>% group_by(ID) %>% filter(crpss == max(crpss))
-table(n_pt_obs$model)
-
 skill1 = myfun(skill_scores_subset %>% filter(!model %in% "NAOPT"), skill_measure = skill_measure)
 p1 = myplotfun1(na.omit(skill1), legend_title = toupper(skill_measure))
-## n_naopt <- table(skill1$model)[["NAOPT"]]
+n_naopt <- table(skill1$model)[["NAOPT"]]
 n_pt <- table(skill1$model)[["PT"]]
 n_p <- table(skill1$model)[["P"]]
 ## labs <- c(paste0("italic(n)==", n_p), paste0("italic(n)==", n_pt), paste0("italic(n)==", n_naopt))
@@ -475,7 +450,7 @@ p1 <- p1 +
   geom_point(
     data = d,
     aes(x, y, shape = model),
-    size = 1.5,
+    size = 2,
     lwd = 0.1,
     show.legend = FALSE
   ) +
@@ -485,18 +460,18 @@ p1 <- p1 +
     parse = TRUE,
     hjust = 0,
     nudge_x = 0.3,
-    size = 2
+    size = 4
   ) +
   scale_shape_manual(values = c(21, 24)) +
   theme(axis.title = element_blank(),
-        axis.text.x = element_text(size = axis_label_size),
-        axis.text.y = element_text(size = axis_label_size),
+        axis.text.x = element_text(size = 9),
+        axis.text.y = element_text(size = 9),
         legend.position = "bottom",
         legend.box = "vertical",
         legend.justification = "left",
         legend.box.just = "left",
-        legend.title = element_text(size = legend_title_size),
-        legend.text = element_text(size = legend_label_size),
+        legend.title = element_text(size = 11),
+        legend.text = element_text(size = 9),
         strip.text = element_blank(),
         panel.grid.major = element_line(size = 0.25))
 
@@ -512,7 +487,7 @@ p2 <- p2 +
   geom_point(
     data = d,
     aes(x, y, shape = model),
-    size = 1.5,
+    size = 2,
     lwd = 0.1,
     show.legend = FALSE
   ) +
@@ -522,19 +497,19 @@ p2 <- p2 +
     parse = TRUE,
     hjust = 0,
     nudge_x = 0.3,
-    size = 2
+    size = 4
   ) +
   scale_shape_manual(values = c(21, 24)) +
   ## scale_shape_manual(values = c(21, 24, 22)) +
   theme(axis.title = element_blank(),
-        axis.text.x = element_text(size = axis_label_size),
-        axis.text.y = element_text(size = axis_label_size),
+        axis.text.x = element_text(size = 9),
+        axis.text.y = element_text(size = 9),
         legend.position = "bottom",
         legend.box = "vertical",
         legend.justification = "left",
         legend.box.just = "left",
-        legend.title = element_text(size = legend_title_size),
-        legend.text = element_text(size = legend_label_size),
+        legend.title = element_text(size = 11),
+        legend.text = element_text(size = 9),
         strip.text = element_blank(),
         panel.grid.major = element_line(size = 0.25))
 
@@ -553,7 +528,7 @@ p2 <- p2 +
 p2 <- p2 + theme(axis.ticks.y = element_blank(), axis.text.y = element_blank())
 p2 <- p2 + guides(shape = "none")
 
-p = p1 + p2 + plot_layout(widths = c(2, 2), ncol = 2, nrow = 1)
+p = p2 + p1 + plot_layout(widths = c(2, 2), ncol = 2, nrow = 1)
 p = p +
   plot_layout(guides = "collect") &
   theme(legend.position = "bottom",
@@ -561,132 +536,7 @@ p = p +
         legend.justification = "left",
         legend.box.just = "left",
         legend.margin = margin(0, 0, 0, 0, unit = "cm"))
-
-p$patches$plots[[1]] =
-  p$patches$plots[[1]] +
-  labs(tag = "a") +
-  theme(plot.tag.position = c(0.096, 0.98),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
-p =
-  p +
-  labs(tag = "b") +
-  theme(plot.tag.position = c(0.0195, 0.98),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
-
-ggsave(file.path(output_dir, "fig1_grl.png"), plot = p, width = 6, height = 6, units = "in")
-
-## ## ####################################################### ##
-## ## ####################################################### ##
-## ##
-## ## Figure 1: Presentation version
-## ##
-## ## ####################################################### ##
-## ## ####################################################### ##
-
-## skill1 = myfun(skill_scores_subset %>% filter(!model %in% "NAOPT"), skill_measure = skill_measure)
-## p1 = myplotfun1(na.omit(skill1), legend_title = toupper(skill_measure))
-## ## n_naopt <- table(skill1$model)[["NAOPT"]]
-## n_pt <- table(skill1$model)[["PT"]]
-## n_p <- table(skill1$model)[["P"]]
-## ## labs <- c(paste0("italic(n)==", n_p), paste0("italic(n)==", n_pt), paste0("italic(n)==", n_naopt))
-## ## d <- data.frame(x = c(0, 0, 0), y = c(59, 58.5, 58), lab = labs, model = c("P", "PT", "NAOPT"))
-## labs <- c(paste0("italic(n)==", n_p), paste0("italic(n)==", n_pt))
-## d <- data.frame(x = c(0, 0), y = c(59, 58.5), lab = labs, model = c("P", "PT"))
-## p1 <- p1 +
-##   geom_point(
-##     data = d,
-##     aes(x, y, shape = model),
-##     size = 2,
-##     lwd = 0.1,
-##     show.legend = FALSE
-##   ) +
-##   geom_text(
-##     data = d,
-##     aes(x, y, label = lab),
-##     parse = TRUE,
-##     hjust = 0,
-##     nudge_x = 0.3,
-##     size = 4
-##   ) +
-##   scale_shape_manual(values = c(21, 24)) +
-##   theme(axis.title = element_blank(),
-##         axis.text.x = element_text(size = 9),
-##         axis.text.y = element_text(size = 9),
-##         legend.position = "bottom",
-##         legend.box = "vertical",
-##         legend.justification = "left",
-##         legend.box.just = "left",
-##         legend.title = element_text(size = 11),
-##         legend.text = element_text(size = 9),
-##         strip.text = element_blank(),
-##         panel.grid.major = element_line(size = 0.25))
-
-## ## Perfect prediction case
-## skill1 = myfun(obs_skill_scores_subset %>% filter(!model %in% "NAOPT"), skill_measure = skill_measure)
-## p2 = myplotfun1(na.omit(skill1), legend_title = toupper(skill_measure))
-## n_naopt <- table(skill1$model)[["NAOPT"]]
-## n_pt <- table(skill1$model)[["PT"]]
-## n_p <- table(skill1$model)[["P"]]
-## labs <- c(paste0("italic(n)==", n_p), paste0("italic(n)==", n_pt))
-## d <- data.frame(x = c(0, 0), y = c(59, 58.5), lab = labs, model = c("P", "PT"))
-## p2 <- p2 +
-##   geom_point(
-##     data = d,
-##     aes(x, y, shape = model),
-##     size = 2,
-##     lwd = 0.1,
-##     show.legend = FALSE
-##   ) +
-##   geom_text(
-##     data = d,
-##     aes(x, y, label = lab),
-##     parse = TRUE,
-##     hjust = 0,
-##     nudge_x = 0.3,
-##     size = 4
-##   ) +
-##   scale_shape_manual(values = c(21, 24)) +
-##   ## scale_shape_manual(values = c(21, 24, 22)) +
-##   theme(axis.title = element_blank(),
-##         axis.text.x = element_text(size = 9),
-##         axis.text.y = element_text(size = 9),
-##         legend.position = "bottom",
-##         legend.box = "vertical",
-##         legend.justification = "left",
-##         legend.box.just = "left",
-##         legend.title = element_text(size = 11),
-##         legend.text = element_text(size = 9),
-##         strip.text = element_blank(),
-##         panel.grid.major = element_line(size = 0.25))
-
-## p1 <- p1 +
-##   scale_fill_stepsn(
-##     colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
-##     breaks = seq(-0.4, 0.8, 0.2),
-##     limits = c(-0.3, 0.9)
-##   )
-## p2 <- p2 +
-##   scale_fill_stepsn(
-##     colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
-##     breaks = seq(-0.4, 0.8, 0.2),
-##     limits = c(-0.3, 0.9)
-##   )
-## p2 <- p2 + theme(axis.ticks.y = element_blank(), axis.text.y = element_blank())
-## p2 <- p2 + guides(shape = "none")
-
-## p = p2 + p1 + plot_layout(widths = c(2, 2), ncol = 2, nrow = 1)
-## p = p +
-##   plot_layout(guides = "collect") &
-##   theme(legend.position = "bottom",
-##         legend.box = "vertical",
-##         legend.justification = "left",
-##         legend.box.just = "left",
-##         legend.margin = margin(0, 0, 0, 0, unit = "cm"))
-## ggsave(file.path(output_dir, "fig1_ppt.png"), plot = p, width = 6, height = 6, units = "in")
+ggsave(file.path(output_dir, "fig1_ppt.png"), plot = p, width = 6, height = 6, units = "in")
 
 ## ####################################################### ##
 ## ####################################################### ##
@@ -710,18 +560,6 @@ skill_scores_subset =
   mutate(skill_diff = best_n - full)
 
 p4 <- myplotfun444(skill_scores_subset %>% filter(model %in% c("P", "PT") & period %in% aggregation_period_label), legend_title = toupper(skill_measure))
-sample_size <-
-  skill_scores_subset %>%
-  filter(model %in% c("P", "PT")) %>%
-  group_by(model) %>%
-  summarize(n = n()) %>%
-  mutate(x = c(1, 2), y = -0.8, lab = paste0("italic(n)==", n))
-p4 <- p4 +
-  geom_text(
-    data = sample_size,
-    aes(x, y, label = lab),
-    parse = TRUE, vjust = -0.7, nudge_x = 0, size = 2
-  )
 
 skill_scores_subset <-
   skill_scores_subset %>% ungroup() %>%
@@ -785,21 +623,6 @@ p3 <- myplotfun22(
   legend_title = toupper(skill_measure)
 )
 
-sample_size <-
-  skill_scores_subset %>%
-  group_by(subset, model) %>%
-  summarize(n=n()) %>%
-  group_by(subset) %>%
-  summarize(n = floor(mean(n))) %>%
-  mutate(x = c(1.5, 3.5), y = -0.8, lab = paste0("italic(n)==", n))
-
-p3 <- p3 +
-  geom_text(
-    data = sample_size,
-    aes(x, y, label = lab),
-    parse = TRUE, vjust = -0.7, nudge_x = 0, size = 2
-  )
-
 ## Signif [one-sided Wilcoxon signed rank test]
 x <- skill_scores_subset %>%
   filter(model %in% "P" & subset %in% "Full ensemble") %>%
@@ -819,7 +642,7 @@ pval2 = wilcox.test(y, x, paired = TRUE, alternative = "greater")$p.value
 
 p3 <- p3 +
   geom_signif(
-    y_position = 0.7, xmin = c(1, 3), xmax = c(2, 4),
+    y_position = 0.92, xmin = c(1, 3), xmax = c(2, 4),
     annotation = c(format_p(pval1), format_p(pval2)), #, format_p(pval3)),
     step_increase = 0.06,
     tip_length = 0.02,
@@ -849,71 +672,29 @@ p1 <- p1 +
   ) +
   theme(legend.position = "right")
 
-n_pt <- table(skill$model)[["PT"]]
-n_p <- table(skill$model)[["P"]]
-labs <- c(paste0("italic(n)==", n_p), paste0("italic(n)==", n_pt))
-d <- data.frame(x = c(0, 0), y = c(59, 58.5), lab = labs, model = c("P", "PT"))
-p1 <- p1 +
-  geom_point(
-    data = d,
-    aes(x, y, shape = model),
-    size = 1,
-    lwd = 0.1,
-    show.legend = FALSE
-  ) +
-  geom_text(
-    data = d,
-    aes(x, y, label = lab),
-    parse = TRUE,
-    hjust = 0,
-    nudge_x = 0.3,
-    size = 2
-  ) +
-  scale_shape_manual(values = c(21, 24)) +
-  guides(shape = "none") +
-  theme(axis.title = element_blank(),
-        axis.text.x = element_text(size = axis_label_size),
-        axis.text.y = element_text(size = axis_label_size),
-        ## legend.position = "bottom",
-        ## legend.box = "vertical",
-        ## legend.justification = "left",
-        ## legend.box.just = "left",
-        ## legend.title = element_text(size = legend_title_size),
-        ## legend.text = element_text(size = legend_label_size),
-        strip.text = element_blank(),
-        panel.grid.major = element_line(size = 0.25))
-
 p <- p1 + p2 + p3 + p4 + plot_layout(nrow = 2, ncol = 2)
 p <- p + plot_layout(heights = c(2, 1), widths = c(2, 2, 2))
 
 p$patches$plots[[1]] =
   p$patches$plots[[1]] +
   labs(tag = "a") +
-  theme(plot.tag.position = c(0.15, 0.92),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
+  theme(plot.tag.position = c(0.145, 0.94),
+        plot.tag = element_text(size = tag_label_size, face="bold"))
 p$patches$plots[[2]] =
   p$patches$plots[[2]] +
   labs(tag = "b") +
-  theme(plot.tag.position = c(0.125, 0.92),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
+  theme(plot.tag.position = c(0.14, 0.94),
+        plot.tag = element_text(size = tag_label_size, face="bold"))
 p$patches$plots[[3]] =
   p$patches$plots[[3]] +
   labs(tag = "c") +
-  theme(plot.tag.position = c(0.15, 1.025),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
+  theme(plot.tag.position = c(0.145, 1.045),
+        plot.tag = element_text(size = tag_label_size, face="bold"))
 p =
   p +
   labs(tag = "d") +
-  theme(plot.tag.position = c(0.125, 1.025),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
+  theme(plot.tag.position = c(0.14, 1.005),
+        plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
 
 ggsave(file.path(output_dir, "fig2.png"), plot = p, width = 6, height = 6, units = "in")
 
@@ -934,126 +715,126 @@ p =
 
 ggsave(file.path(output_dir, "fig2_alt1.png"), plot = p, width = 6, height = 4.5, units = "in")
 
-## ## ####################################################### ##
-## ## ####################################################### ##
-## ##
-## ## Figure 2 (presentation)
-## ##
-## ## ####################################################### ##
-## ## ####################################################### ##
+## ####################################################### ##
+## ####################################################### ##
+##
+## Figure 2 (presentation)
+##
+## ####################################################### ##
+## ####################################################### ##
 
-## skill_scores_subset <-
-##   skill_scores %>%
-##   filter(model %in% c("P", "PT", "NAOPT")) %>%
-##   filter(subset %in% c("best_n", "full")) %>%
-##   filter(period %in% aggregation_period) %>%
-##   mutate(period = factor(period, levels = aggregation_period, labels = aggregation_period_label)) %>%
-##   mutate(skill = !!sym(skill_measure)) %>%
-##   dplyr::select(-all_of(all_skill_measures)) %>%
-##   pivot_wider(names_from = subset, values_from = skill) %>%
-##   mutate(skill_diff = best_n - full)
+skill_scores_subset <-
+  skill_scores %>%
+  filter(model %in% c("P", "PT", "NAOPT")) %>%
+  filter(subset %in% c("best_n", "full")) %>%
+  filter(period %in% aggregation_period) %>%
+  mutate(period = factor(period, levels = aggregation_period, labels = aggregation_period_label)) %>%
+  mutate(skill = !!sym(skill_measure)) %>%
+  dplyr::select(-all_of(all_skill_measures)) %>%
+  pivot_wider(names_from = subset, values_from = skill) %>%
+  mutate(skill_diff = best_n - full)
 
-## skill_scores_subset <-
-##   skill_scores_subset %>% ungroup() %>%
-##   filter(model %in% c("P", "PT")) %>%
-##   left_join(
-##     (skill_scores %>%
-##      filter(subset %in% "best_n") %>%
-##      filter(period %in% aggregation_period) %>%
-##      mutate(skill = !!sym(skill_measure)) %>%
-##      dplyr::select(model, skill, ID)),
-##     by = c("model", "ID")
-##   )
+skill_scores_subset <-
+  skill_scores_subset %>% ungroup() %>%
+  filter(model %in% c("P", "PT")) %>%
+  left_join(
+    (skill_scores %>%
+     filter(subset %in% "best_n") %>%
+     filter(period %in% aggregation_period) %>%
+     mutate(skill = !!sym(skill_measure)) %>%
+     dplyr::select(model, skill, ID)),
+    by = c("model", "ID")
+  )
 
-## skill <-
-##   skill_scores_subset %>%
-##   group_by(ID, period) %>%
-##   filter(skill == max(skill)) %>% #msss == max(msss)) %>%
-##   mutate(increase = skill_diff > 0) %>%
-##   mutate(skill_diff = abs(skill_diff))
-## skill <- gauge_stns %>% left_join(skill) %>% na.omit()
+skill <-
+  skill_scores_subset %>%
+  group_by(ID, period) %>%
+  filter(skill == max(skill)) %>% #msss == max(msss)) %>%
+  mutate(increase = skill_diff > 0) %>%
+  mutate(skill_diff = abs(skill_diff))
+skill <- gauge_stns %>% left_join(skill) %>% na.omit()
 
-## p2 = myplotfun3(skill) # %>% filter(period %in% aggregation_period_label))
-## p2 = p2 +
-##   guides(
-##     shape = guide_legend(order = 1),
-##     size = guide_legend(
-##       order = 2, nrow = 3,
-##       byrow = FALSE,
-##       override.aes = list(shape = c(rep(21, 3), rep(24, 3))),
-##       direction = "vertical"
-##     ),
-##     fill = guide_legend(
-##       order = 3,
-##       override.aes = list(shape = 21, fill = c("#FC8D62", "#66C2A5"))
-##     )
-##   )
-## p2 = p2 +
-##   theme(legend.margin = margin(0, 0, 0, 0, unit = "cm"),
-##         axis.title = element_blank(),
-##         axis.text.x = element_text(size = 9),
-##         axis.text.y = element_text(size = 9),
-##         ## legend.position = "bottom",
-##         legend.box = "vertical",
-##         legend.justification = "left",
-##         legend.box.just = "left",
-##         legend.title = element_text(size = 11),
-##         legend.text = element_text(size = 9),
-##         strip.text = element_blank(),
-##         panel.grid.major = element_line(size = 0.25))
+p2 = myplotfun3(skill) # %>% filter(period %in% aggregation_period_label))
+p2 = p2 +
+  guides(
+    shape = guide_legend(order = 1),
+    size = guide_legend(
+      order = 2, nrow = 3,
+      byrow = FALSE,
+      override.aes = list(shape = c(rep(21, 3), rep(24, 3))),
+      direction = "vertical"
+    ),
+    fill = guide_legend(
+      order = 3,
+      override.aes = list(shape = 21, fill = c("#FC8D62", "#66C2A5"))
+    )
+  )
+p2 = p2 +
+  theme(legend.margin = margin(0, 0, 0, 0, unit = "cm"),
+        axis.title = element_blank(),
+        axis.text.x = element_text(size = 9),
+        axis.text.y = element_text(size = 9),
+        ## legend.position = "bottom",
+        legend.box = "vertical",
+        legend.justification = "left",
+        legend.box.just = "left",
+        legend.title = element_text(size = 11),
+        legend.text = element_text(size = 9),
+        strip.text = element_blank(),
+        panel.grid.major = element_line(size = 0.25))
 
-## skill_scores_subset =
-##   skill_scores %>%
-##   filter(model %in% c("P", "PT")) %>%
-##   mutate(model = factor(model, levels = c("P", "PT"), labels = c("P", "PT"))) %>%
-##   filter(subset %in% c("best_n", "full"), period %in% aggregation_period) %>%
-##   mutate(
-##     subset = factor(
-##       subset,
-##       levels = c("full", "best_n"),
-##       labels = c("Full ensemble", "NAO-matched ensemble")
-##     )
-##   ) %>%
-##   mutate(
-##     period = factor(
-##       period,
-##       levels = aggregation_period,
-##       labels = aggregation_period_label
-##     )
-##   ) %>%
-##   mutate(skill = !!sym(skill_measure))
+skill_scores_subset =
+  skill_scores %>%
+  filter(model %in% c("P", "PT")) %>%
+  mutate(model = factor(model, levels = c("P", "PT"), labels = c("P", "PT"))) %>%
+  filter(subset %in% c("best_n", "full"), period %in% aggregation_period) %>%
+  mutate(
+    subset = factor(
+      subset,
+      levels = c("full", "best_n"),
+      labels = c("Full ensemble", "NAO-matched ensemble")
+    )
+  ) %>%
+  mutate(
+    period = factor(
+      period,
+      levels = aggregation_period,
+      labels = aggregation_period_label
+    )
+  ) %>%
+  mutate(skill = !!sym(skill_measure))
 
-## skill = myfun(
-##   skill_scores_subset %>% filter(!model %in% "NAOPT" & subset %in% "NAO-matched ensemble"),
-##   skill_measure = skill_measure
-## ) %>%
-##   na.omit()
+skill = myfun(
+  skill_scores_subset %>% filter(!model %in% "NAOPT" & subset %in% "NAO-matched ensemble"),
+  skill_measure = skill_measure
+) %>%
+  na.omit()
 
-## p1 = myplotfun5(skill, legend_title = toupper(skill_measure))
-## rdbu_pal = brewer.pal(11, "RdBu")
-## p1 <- p1 +
-##   scale_fill_stepsn(
-##     colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
-##     breaks = seq(-0.4, 0.8, 0.2),
-##     limits = c(-0.3, 0.9)
-##   ) +
-##   theme(legend.margin = margin(0, 0, 0, 0, unit = "cm"),
-##         axis.title = element_blank(),
-##         axis.text.x = element_text(size = 9),
-##         axis.text.y = element_text(size = 9),
-##         legend.position = "right",
-##         legend.box = "vertical",
-##         legend.justification = "left",
-##         legend.box.just = "left",
-##         legend.title = element_text(size = 11),
-##         legend.text = element_text(size = 9),
-##         strip.text = element_blank(),
-##         panel.grid.major = element_line(size = 0.25))
+p1 = myplotfun5(skill, legend_title = toupper(skill_measure))
+rdbu_pal = brewer.pal(11, "RdBu")
+p1 <- p1 +
+  scale_fill_stepsn(
+    colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
+    breaks = seq(-0.4, 0.8, 0.2),
+    limits = c(-0.3, 0.9)
+  ) +
+  theme(legend.margin = margin(0, 0, 0, 0, unit = "cm"),
+        axis.title = element_blank(),
+        axis.text.x = element_text(size = 9),
+        axis.text.y = element_text(size = 9),
+        legend.position = "right",
+        legend.box = "vertical",
+        legend.justification = "left",
+        legend.box.just = "left",
+        legend.title = element_text(size = 11),
+        legend.text = element_text(size = 9),
+        strip.text = element_blank(),
+        panel.grid.major = element_line(size = 0.25))
 
-## p <- p1 + p2 + plot_layout(nrow = 1, ncol = 2)
-## p <- p + plot_layout(heights = 1, widths = c(2, 2))
+p <- p1 + p2 + plot_layout(nrow = 1, ncol = 2)
+p <- p + plot_layout(heights = 1, widths = c(2, 2))
 
-## ggsave(file.path(output_dir, "fig2_ppt.png"), plot = p, width = 8, height = 6, units = "in")
+ggsave(file.path(output_dir, "fig2_ppt.png"), plot = p, width = 8, height = 6, units = "in")
 
 ## ####################################################### ##
 ## ####################################################### ##
@@ -1094,12 +875,12 @@ predictions$model = factor(predictions$model, levels = model_levels, labels = mo
 predictions <- predictions %>% mutate(obs = Q_95_obs, exp = Q_95_exp)
 
 ## Compute ACC
-## acc <- predictions %>%
-##   group_by(model, ID, subset) %>%
-##   summarize(
-##     acc = cor.test(obs, Q_95_exp, method = "pearson")$estimate,
-##     acc_p = cor.test(obs, Q_95_exp, method = "pearson")$p.value
-##   )
+acc <- predictions %>%
+  group_by(model, ID, subset) %>%
+  summarize(
+    acc = cor.test(obs, Q_95_exp, method = "pearson")$estimate,
+    acc_p = cor.test(obs, Q_95_exp, method = "pearson")$p.value
+  )
 
 library(viridis)
 p1 = predictions %>% filter(ID %in% ids_best[1] & model %in% models_best[1]) %>% myplotfun6()
@@ -1116,28 +897,15 @@ format_p_value = function(p_value) {
   }
 }
 
-## make_annotation = function(acc, id, mod) {
-##   acc_full <- acc %>% filter(ID %in% id & subset %in% "Full ensemble" & model %in% mod)
-##   acc_matched <- acc %>% filter(ID %in% id & subset %in% "NAO-matched ensemble" & model %in% mod)
-##   annotation = paste0(
-##     paste0(
-##       "ACC (Full) = ", sprintf(acc_full$acc, fmt = "%#.2f"), " ", format_p_value(acc_full$acc_p), "\n"
-##     ),
-##     paste0(
-##       "ACC (NAO-matched) = ", sprintf(acc_matched$acc, fmt = "%#.2f"), " ", format_p_value(acc_matched$acc_p), "\n"
-##     )
-##   )
-##   annotation
-## }
-make_annotation = function(crpss, id, mod) {
-  crpss_full <- crpss %>% filter(ID %in% id & subset %in% "full" & model %in% mod) %>% `$`(crpss)
-  crpss_matched <- crpss %>% filter(ID %in% id & subset %in% "best_n" & model %in% mod) %>% `$`(crpss)
+make_annotation = function(acc, id, mod) {
+  acc_full <- acc %>% filter(ID %in% id & subset %in% "Full ensemble" & model %in% mod)
+  acc_matched <- acc %>% filter(ID %in% id & subset %in% "NAO-matched ensemble" & model %in% mod)
   annotation = paste0(
     paste0(
-      "CRPSS (Full) = ", sprintf(crpss_full, fmt = "%#.2f"), "\n"#, " ", format_p_value(acc_full$acc_p), "\n"
+      "ACC (Full) = ", sprintf(acc_full$acc, fmt = "%#.2f"), " ", format_p_value(acc_full$acc_p), "\n"
     ),
     paste0(
-      "CRPSS (NAO-matched) = ", sprintf(crpss_matched, fmt = "%#.2f")#, "\n"#, " ", format_p_value(acc_matched$acc_p), "\n"
+      "ACC (NAO-matched) = ", sprintf(acc_matched$acc, fmt = "%#.2f"), " ", format_p_value(acc_matched$acc_p), "\n"
     )
   )
   annotation
@@ -1162,8 +930,7 @@ p1 <- p1 +
     geom = "text",
     x = 1960,
     y = yrange[1] + diff(yrange) * annotation_rel_pos,
-    ## label = make_annotation(acc, ids_best[1], models_best[1]),
-    label = make_annotation(skill_scores, ids_best[1], models_best[1]),
+    label = make_annotation(acc, ids_best[1], models_best[1]),
     hjust=0,
     vjust=1,
     size = annotation_size / ggplot2::.pt
@@ -1176,8 +943,7 @@ p2 <- p2 +
     geom = "text",
     x = 1960,
     y = yrange[1] + diff(yrange) * annotation_rel_pos,
-    ## label = make_annotation(acc, ids_best[2], models_best[2]),
-    label = make_annotation(skill_scores, ids_best[2], models_best[2]),
+    label = make_annotation(acc, ids_best[2], models_best[2]),
     hjust=0,
     vjust=1,
     size = annotation_size / ggplot2::.pt
@@ -1190,8 +956,7 @@ p3 <- p3 +
     geom = "text",
     x = 1960,
     y = yrange[1] + diff(yrange) * annotation_rel_pos,
-    ## label = make_annotation(acc, ids_best[3], models_best[3]),
-    label = make_annotation(skill_scores, ids_best[3], models_best[3]),
+    label = make_annotation(acc, ids_best[3], models_best[3]),
     hjust=0,
     vjust=1,
     size = annotation_size / ggplot2::.pt
@@ -1204,8 +969,7 @@ p4 <- p4 +
     geom = "text",
     x = 1960,
     y = yrange[1] + diff(yrange) * annotation_rel_pos,
-    ## label = make_annotation(acc, ids_best[4], models_best[4]),
-    label = make_annotation(skill_scores, ids_best[4], models_best[4]),
+    label = make_annotation(acc, ids_best[4], models_best[4]),
     hjust=0,
     vjust=1,
     size = annotation_size / ggplot2::.pt
@@ -1218,8 +982,7 @@ p5 <- p5 +
     geom = "text",
     x = 1960,
     y = yrange[1] + diff(yrange) * annotation_rel_pos,
-    ## label = make_annotation(acc, ids_best[5], models_best[5]),
-    label = make_annotation(skill_scores, ids_best[5], models_best[5]),
+    label = make_annotation(acc, ids_best[5], models_best[5]),
     hjust=0,
     vjust=1,
     size = annotation_size / ggplot2::.pt
@@ -1275,148 +1038,148 @@ p6 = p6 + theme(panel.grid.major = element_line(size = 0.25),
                 axis.title = element_blank(),
                 axis.text = element_text(size = axis_label_size_small))
 
-p = p1 + p2 + p3 + p4 + p5 + p6 +
-  plot_layout(ncol = 3, nrow = 2, widths = c(2, 2, 2)) & theme(legend.position = "bottom")
+p = p1 + p2 + p3 + p4 + p5 + p6 + plot_layout(ncol = 3, nrow = 2, widths = c(2, 2, 2)) & theme(legend.position = "bottom")
 p = p + plot_layout(guides = "collect")
 
 ggsave(file.path(output_dir, "fig3.png"), plot = p, width = 5, height = 5, units = "in")
 
-## ## ####################################################### ##
-## ## ####################################################### ##
-## ##
-## ## Figure 3 presentation
-## ##
-## ## ####################################################### ##
-## ## ####################################################### ##
 
-## p1 = predictions %>% filter(ID %in% ids_best[1] & model %in% models_best[1]) %>% myplotfun6()
-## p2 = predictions %>% filter(ID %in% ids_best[2] & model %in% models_best[2]) %>% myplotfun6()
-## p3 = predictions %>% filter(ID %in% ids_best[3] & model %in% models_best[3]) %>% myplotfun6()
-## p4 = predictions %>% filter(ID %in% ids_best[4] & model %in% models_best[4]) %>% myplotfun6()
-## p5 = predictions %>% filter(ID %in% ids_best[5] & model %in% models_best[5]) %>% myplotfun6()
+## ####################################################### ##
+## ####################################################### ##
+##
+## Figure 3 presentation
+##
+## ####################################################### ##
+## ####################################################### ##
 
-## annotation_size = 6
-## annotation_rel_pos = 1
-## yrange <- get_y_range(p1)
-## yrange[2] <- yrange[2] * 1.025
-## p1 <- p1 +
-##   ylim(yrange) +
-##   annotate(
-##     geom = "text",
-##     x = 1960,
-##     y = yrange[1] + diff(yrange) * annotation_rel_pos,
-##     label = make_annotation(acc, ids_best[1], models_best[1]),
-##     hjust=0,
-##     vjust=1,
-##     size = annotation_size / ggplot2::.pt
-##   )
+p1 = predictions %>% filter(ID %in% ids_best[1] & model %in% models_best[1]) %>% myplotfun6()
+p2 = predictions %>% filter(ID %in% ids_best[2] & model %in% models_best[2]) %>% myplotfun6()
+p3 = predictions %>% filter(ID %in% ids_best[3] & model %in% models_best[3]) %>% myplotfun6()
+p4 = predictions %>% filter(ID %in% ids_best[4] & model %in% models_best[4]) %>% myplotfun6()
+p5 = predictions %>% filter(ID %in% ids_best[5] & model %in% models_best[5]) %>% myplotfun6()
 
-## yrange <- get_y_range(p2)
-## yrange[2] <- yrange[2] * 1.025
-## p2 <- p2 +
-##   annotate(
-##     geom = "text",
-##     x = 1960,
-##     y = yrange[1] + diff(yrange) * annotation_rel_pos,
-##     label = make_annotation(acc, ids_best[2], models_best[2]),
-##     hjust=0,
-##     vjust=1,
-##     size = annotation_size / ggplot2::.pt
-##   )
+annotation_size = 6
+annotation_rel_pos = 1
+yrange <- get_y_range(p1)
+yrange[2] <- yrange[2] * 1.025
+p1 <- p1 +
+  ylim(yrange) +
+  annotate(
+    geom = "text",
+    x = 1960,
+    y = yrange[1] + diff(yrange) * annotation_rel_pos,
+    label = make_annotation(acc, ids_best[1], models_best[1]),
+    hjust=0,
+    vjust=1,
+    size = annotation_size / ggplot2::.pt
+  )
 
-## yrange <- get_y_range(p3)
-## yrange[2] <- yrange[2] * 1.025
-## p3 <- p3 +
-##   annotate(
-##     geom = "text",
-##     x = 1960,
-##     y = yrange[1] + diff(yrange) * annotation_rel_pos,
-##     label = make_annotation(acc, ids_best[3], models_best[3]),
-##     hjust=0,
-##     vjust=1,
-##     size = annotation_size / ggplot2::.pt
-##   )
+yrange <- get_y_range(p2)
+yrange[2] <- yrange[2] * 1.025
+p2 <- p2 +
+  annotate(
+    geom = "text",
+    x = 1960,
+    y = yrange[1] + diff(yrange) * annotation_rel_pos,
+    label = make_annotation(acc, ids_best[2], models_best[2]),
+    hjust=0,
+    vjust=1,
+    size = annotation_size / ggplot2::.pt
+  )
 
-## yrange <- get_y_range(p4)
-## yrange[2] <- yrange[2] * 1.025
-## p4 <- p4 +
-##   annotate(
-##     geom = "text",
-##     x = 1960,
-##     y = yrange[1] + diff(yrange) * annotation_rel_pos,
-##     label = make_annotation(acc, ids_best[4], models_best[4]),
-##     hjust=0,
-##     vjust=1,
-##     size = annotation_size / ggplot2::.pt
-##   )
+yrange <- get_y_range(p3)
+yrange[2] <- yrange[2] * 1.025
+p3 <- p3 +
+  annotate(
+    geom = "text",
+    x = 1960,
+    y = yrange[1] + diff(yrange) * annotation_rel_pos,
+    label = make_annotation(acc, ids_best[3], models_best[3]),
+    hjust=0,
+    vjust=1,
+    size = annotation_size / ggplot2::.pt
+  )
 
-## yrange <- get_y_range(p5)
-## yrange[2] <- yrange[2] * 1.025
-## p5 <- p5 +
-##   annotate(
-##     geom = "text",
-##     x = 1960,
-##     y = yrange[1] + diff(yrange) * annotation_rel_pos,
-##     label = make_annotation(acc, ids_best[5], models_best[5]),
-##     hjust=0,
-##     vjust=1,
-##     size = annotation_size / ggplot2::.pt
-##   )
+yrange <- get_y_range(p4)
+yrange[2] <- yrange[2] * 1.025
+p4 <- p4 +
+  annotate(
+    geom = "text",
+    x = 1960,
+    y = yrange[1] + diff(yrange) * annotation_rel_pos,
+    label = make_annotation(acc, ids_best[4], models_best[4]),
+    hjust=0,
+    vjust=1,
+    size = annotation_size / ggplot2::.pt
+  )
 
-## gauge_stns_subset = gauge_stns %>% filter(ID %in% ids_best)
-## p6 = myplotfun777(gauge_stns_subset)
-## p6 =
-##   p6 +
-##   ggrepel::geom_label_repel(
-##              data=gauge_stns_subset,
-##              aes(label=ID, geometry=geometry),
-##              stat="sf_coordinates",
-##              min.segment.length = 0,
-##              size = 1.75)
+yrange <- get_y_range(p5)
+yrange[2] <- yrange[2] * 1.025
+p5 <- p5 +
+  annotate(
+    geom = "text",
+    x = 1960,
+    y = yrange[1] + diff(yrange) * annotation_rel_pos,
+    label = make_annotation(acc, ids_best[5], models_best[5]),
+    hjust=0,
+    vjust=1,
+    size = annotation_size / ggplot2::.pt
+  )
 
-## p1 = p1 + theme(panel.grid = element_blank(),
-##                 strip.text = element_text(size = 9),
-##                 ## legend.title = element_text(size = legend_title_size),
-##                 legend.text = element_text(size = 9),
-##                 axis.title.y = element_text(size = 9),
-##                 axis.text.y = element_text(size = 9),
-##                 axis.text.x = element_text(size = 9))
-## p2 = p2 + theme(panel.grid = element_blank(),
-##                 strip.text = element_text(size = 9),
-##                 ## legend.title = element_text(size = legend_title_size),
-##                 legend.text = element_text(size = 9),
-##                 axis.title.y = element_blank(),
-##                 axis.text.y = element_text(size = 9),
-##                 axis.text.x = element_text(size = 9))
-## p3 = p3 + theme(panel.grid = element_blank(),
-##                 strip.text = element_text(size = 9),
-##                 ## legend.title = element_text(size = legend_title_size),
-##                 legend.text = element_text(size = 9),
-##                 axis.title.y = element_blank(),
-##                 axis.text.y = element_text(size = 9),
-##                 axis.text.x = element_text(size = 9))
-## p4 = p4 + theme(panel.grid = element_blank(),
-##                 strip.text = element_text(size = 9),
-##                 ## legend.title = element_text(size = legend_title_size),
-##                 legend.text = element_text(size = 9),
-##                 axis.title.y = element_text(size = 9),
-##                 axis.text.y = element_text(size = 9),
-##                 axis.text.x = element_text(size = 9))
-## p5 = p5 + theme(panel.grid = element_blank(),
-##                 strip.text = element_text(size = 9),
-##                 ## legend.title = element_text(size = legend_title_size),
-##                 legend.text = element_text(size = 9),
-##                 axis.title.y = element_blank(),
-##                 axis.text.y = element_text(size = 9),
-##                 axis.text.x = element_text(size = 9))
-## p6 = p6 + theme(panel.grid.major = element_line(size = 0.25),
-##                 axis.title = element_blank(),
-##                 axis.text = element_text(size = 9))
+gauge_stns_subset = gauge_stns %>% filter(ID %in% ids_best)
+p6 = myplotfun777(gauge_stns_subset)
+p6 =
+  p6 +
+  ggrepel::geom_label_repel(
+             data=gauge_stns_subset,
+             aes(label=ID, geometry=geometry),
+             stat="sf_coordinates",
+             min.segment.length = 0,
+             size = 1.75)
 
-## p = p1 + p2 + p3 + p4 + p5 + p6 + plot_layout(ncol = 3, nrow = 2, widths = c(2, 2, 2)) & theme(legend.position = "bottom")
-## p = p + plot_layout(guides = "collect")
+p1 = p1 + theme(panel.grid = element_blank(),
+                strip.text = element_text(size = 9),
+                ## legend.title = element_text(size = legend_title_size),
+                legend.text = element_text(size = 9),
+                axis.title.y = element_text(size = 9),
+                axis.text.y = element_text(size = 9),
+                axis.text.x = element_text(size = 9))
+p2 = p2 + theme(panel.grid = element_blank(),
+                strip.text = element_text(size = 9),
+                ## legend.title = element_text(size = legend_title_size),
+                legend.text = element_text(size = 9),
+                axis.title.y = element_blank(),
+                axis.text.y = element_text(size = 9),
+                axis.text.x = element_text(size = 9))
+p3 = p3 + theme(panel.grid = element_blank(),
+                strip.text = element_text(size = 9),
+                ## legend.title = element_text(size = legend_title_size),
+                legend.text = element_text(size = 9),
+                axis.title.y = element_blank(),
+                axis.text.y = element_text(size = 9),
+                axis.text.x = element_text(size = 9))
+p4 = p4 + theme(panel.grid = element_blank(),
+                strip.text = element_text(size = 9),
+                ## legend.title = element_text(size = legend_title_size),
+                legend.text = element_text(size = 9),
+                axis.title.y = element_text(size = 9),
+                axis.text.y = element_text(size = 9),
+                axis.text.x = element_text(size = 9))
+p5 = p5 + theme(panel.grid = element_blank(),
+                strip.text = element_text(size = 9),
+                ## legend.title = element_text(size = legend_title_size),
+                legend.text = element_text(size = 9),
+                axis.title.y = element_blank(),
+                axis.text.y = element_text(size = 9),
+                axis.text.x = element_text(size = 9))
+p6 = p6 + theme(panel.grid.major = element_line(size = 0.25),
+                axis.title = element_blank(),
+                axis.text = element_text(size = 9))
 
-## ggsave(file.path(output_dir, "fig3_ppt.png"), plot = p, width = 7, height = 6, units = "in")
+p = p1 + p2 + p3 + p4 + p5 + p6 + plot_layout(ncol = 3, nrow = 2, widths = c(2, 2, 2)) & theme(legend.position = "bottom")
+p = p + plot_layout(guides = "collect")
+
+ggsave(file.path(output_dir, "fig3_ppt.png"), plot = p, width = 7, height = 6, units = "in")
 
 ## ####################################################### ##
 ## ####################################################### ##
@@ -1425,13 +1188,6 @@ ggsave(file.path(output_dir, "fig3.png"), plot = p, width = 5, height = 5, units
 ##
 ## ####################################################### ##
 ## ####################################################### ##
-
-r2 <-
-  open_dataset("results/exp1/analysis/yr2to9_lag/input") %>%
-  collect() %>%
-  filter(subset %in% "observed") %>%
-  group_by(ID) %>%
-  summarize(R2 = cor.test(Q_95, nao)$estimate ** 2)
 
 skill_scores_subset <-
   skill_scores %>%
@@ -1453,37 +1209,28 @@ obs_skill_scores_subset <-
 
 x = skill_scores_subset %>%
   left_join(obs_skill_scores_subset) %>%
-  left_join(r2) %>%
   filter(model %in% c("P", "PT"))
 
 x_P = x %>% filter(model %in% "P")
 x_PT = x %>% filter(model %in% "PT")
-m_P = lm(skill_diff ~ R2, data = x_P)
-m_PT = lm(skill_diff ~ R2, data = x_PT)
-r2_P = summary(m_P)$r.squared %>% formatC(digits=2, format="f")
-r2_PT = summary(m_PT)$r.squared %>% formatC(digits=2, format="f")
-
-r2_P = substitute(R^2~"="~r2, list(r2=r2_P)) %>% as.expression
-r2_PT = substitute(R^2~"="~r2, list(r2=r2_PT)) %>% as.expression
+m_P = lm(skill_diff ~ obs_skill, data = x_P)
+m_PT = lm(skill_diff ~ obs_skill, data = x_PT)
+r2_P = summary(m_P)$r.squared
+r2_PT = summary(m_PT)$r.squared
 
 cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
 p = myplotfun9(x, legend_title = toupper(skill_measure))
 p =
-  p +
+  p + #xlim(-0.2, 0.5) +
   scale_x_continuous(
-    ## name=paste0(toupper(skill_measure), " (Observations)"),
-    name=expression(R^{2}~"(Observations)"),
-    ## breaks=c(-0.2, 0, 0.2, 0.4, 0.6, 0.8),
-    ## limits=c(-0.2, 0.4)
-    breaks=seq(0, 1, by = 0.2),
-    limits=c(0, 0.7)
+    name=paste0(toupper(skill_measure), " (Observations)"),
+    breaks=c(-0.2, 0, 0.2, 0.4, 0.6, 0.8),
+    limits=c(-0.2, 0.4)
   ) +
-  ## geom_vline(xintercept = 0, size = 0.25) +
+  geom_vline(xintercept = 0, size = 0.25) +
   geom_hline(yintercept = 0, size = 0.25) +
   scale_color_manual(name = "Model", values = cbbPalette) +
   geom_smooth(method = "lm", se = FALSE) +
-  geom_text(x=0.425, y=0.38, label=r2_P, show.legend = FALSE, color=cbbPalette[1], size=4) +
-  geom_text(x=0.6, y=0.2, label=r2_PT, show.legend = FALSE, color=cbbPalette[2], size=4) +
   theme(
     ## legend.position = "right",
     legend.position = "bottom",
@@ -1497,38 +1244,38 @@ p =
 
 ggsave(file.path(output_dir, "fig4.png"), plot = p, width = 5, height = 5, units = "in")
 
-## ## ####################################################### ##
-## ## ####################################################### ##
-## ##
-## ## Figure 4 presentation
-## ##
-## ## ####################################################### ##
-## ## ####################################################### ##
+## ####################################################### ##
+## ####################################################### ##
+##
+## Figure 4 presentation
+##
+## ####################################################### ##
+## ####################################################### ##
 
-## p = myplotfun9(x, legend_title = toupper(skill_measure))
-## p =
-##   p + #xlim(-0.2, 0.5) +
-##   scale_x_continuous(
-##     name=paste0(toupper(skill_measure), " (Observations)"),
-##     breaks=c(-0.2, 0, 0.2, 0.4, 0.6, 0.8),
-##     limits=c(-0.2, 0.4)
-##   ) +
-##   geom_vline(xintercept = 0, size = 0.5) +
-##   geom_hline(yintercept = 0, size = 0.5) +
-##   scale_color_manual(name = "Model", values = cbbPalette) +
-##   geom_smooth(method = "lm", se = FALSE) +
-##   theme(
-##     ## legend.position = "right",
-##     legend.position = "bottom",
-##     panel.grid = element_blank(),
-##     axis.title.y = element_text(size = 9),
-##     axis.text.y = element_text(size = 9),
-##     axis.text.x = element_text(size = 9),
-##     axis.title.x = element_text(size = 9),
-##     legend.title = element_text(size = 9),
-##     legend.text = element_text(size = 9))
+p = myplotfun9(x, legend_title = toupper(skill_measure))
+p =
+  p + #xlim(-0.2, 0.5) +
+  scale_x_continuous(
+    name=paste0(toupper(skill_measure), " (Observations)"),
+    breaks=c(-0.2, 0, 0.2, 0.4, 0.6, 0.8),
+    limits=c(-0.2, 0.4)
+  ) +
+  geom_vline(xintercept = 0, size = 0.5) +
+  geom_hline(yintercept = 0, size = 0.5) +
+  scale_color_manual(name = "Model", values = cbbPalette) +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme(
+    ## legend.position = "right",
+    legend.position = "bottom",
+    panel.grid = element_blank(),
+    axis.title.y = element_text(size = 9),
+    axis.text.y = element_text(size = 9),
+    axis.text.x = element_text(size = 9),
+    axis.title.x = element_text(size = 9),
+    legend.title = element_text(size = 9),
+    legend.text = element_text(size = 9))
 
-## ggsave(file.path(output_dir, "fig4_ppt.png"), plot = p, width = 5, height = 5, units = "in")
+ggsave(file.path(output_dir, "fig4_ppt.png"), plot = p, width = 5, height = 5, units = "in")
 
 ## ####################################################### ##
 ## ####################################################### ##
@@ -1538,14 +1285,12 @@ ggsave(file.path(output_dir, "fig4.png"), plot = p, width = 5, height = 5, units
 ## ####################################################### ##
 ## ####################################################### ##
 
-d <- tibble(
-  Q = c(3.5, 5, 8, 10.5),
-  Lead = 1,
-  ## Period = 8,
-  Period = 4,
-  Init = c(1979, 1980, 1981, 1982)
-) %>%
-  mutate(Start = Init + Lead, End = Start + Period - 1)
+d <- tibble(Q = c(3.5, 5, 8, 10.5),
+            Lead = 1,
+            Period = 8,
+            Init = c(1979, 1980, 1981, 1982),
+            Start = c(1980, 1981, 1982, 1983),
+            End = c(1988, 1989, 1990, 1991))
 
 cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
 library(ggnewscale)
@@ -1594,8 +1339,7 @@ p1 <- ggplot(d) +
   scale_x_continuous(
     name="",
     breaks=seq(1978, 1991, by = 2),
-    ## limits=c(1978.5, 1991.5),
-    limits=c(1978.5, 1988.5),
+    limits=c(1978.5, 1991.5),
     expand = c(0, 0)
   ) +
   theme_bw() +
@@ -1627,7 +1371,7 @@ d <-
   mutate(Q_95_multiyear = rollapply(Q_95, period_length, mean, align = "left", fill = NA)) %>%
   mutate(Start = season_year, End = Start + period_length - 1) %>%
   dplyr::select(clim_season, season_year, Q_95, Q_95_multiyear, Start, End) %>%
-  mutate(group = ifelse(season_year %in% seq(1983, 1983 + period_length - 1), "a", "b")) %>%
+  mutate(group = ifelse(season_year %in% 1983:1991, "a", "b")) %>%
   mutate(Q_95_multiyear = ifelse(season_year %in% 1983, Q_95_multiyear, NA)) %>%
   mutate(Init = Start - 1)
 
@@ -1653,7 +1397,7 @@ p2 <- ggplot(d) +
   new_scale_color() +
   geom_point(
     data = d %>%
-      dplyr::select(-group, -Init) %>%
+      dplyr::select(-group) %>%
       na.omit() %>%
       gather(-(clim_season:Q_95_multiyear), key = key, value = value) %>%
       mutate(
@@ -1684,8 +1428,7 @@ p2 <- ggplot(d) +
   scale_x_continuous(
     name="",
     breaks=seq(1978, 1991, by = 2),
-    ## limits=c(1978.5, 1991.5),
-    limits=c(1978.5, 1988.5),
+    limits=c(1978.5, 1991.5),
     expand = c(0, 0)
   ) +
   scale_y_continuous(name = "Q") +
@@ -1708,7 +1451,7 @@ p <-
   plot_layout(nrow = 2, ncol = 1, guides = "collect") &
   theme(legend.title = element_blank(),
         legend.position = "bottom",
-        legend.text = element_text(size = 8)) #legend_label_size))
+        legend.text = element_text(size = legend_label_size))
 p$patches$plots[[1]] =
   p$patches$plots[[1]] +
   labs(tag = "a") +
@@ -1721,6 +1464,7 @@ p = p +
 
 ggsave(file.path(output_dir, "figS1.png"), plot = p, width = 6, height = 6, units = "in")
 
+## For presentation:
 period_length = 4
 d <-
   open_dataset(file.path(outputroot, "nrfa-discharge-summaries")) %>%
@@ -1822,27 +1566,6 @@ p3 <- ggplot(d) +
   ) +
   scale_y_continuous(name = "Q") +
   theme_bw() +
-  theme(legend.title = element_blank(),
-        legend.position = "bottom")
-
-## p3 <- p3 +
-##   theme(
-##     panel.grid.major.x = element_line(colour = "lightgrey", size = 0.25),
-##     panel.grid.minor.x = element_line(colour = "lightgrey", size = 0.25),
-##     panel.grid.major.y = element_blank(),
-##     panel.grid.minor.y = element_blank(),
-##     axis.title.y = element_text(size = axis_title_size),
-##     axis.text.x = element_text(size = axis_label_size),
-##     axis.title.x = element_blank(), #element_text(size = axis_title_size_large),
-##     axis.text.y = element_blank(),
-##     axis.ticks.x = element_blank(),
-##     axis.ticks.y = element_blank(),
-##     legend.text = element_text(size = legend_label_size)
-##   )
-
-## ggsave(file.path(output_dir, "figS1.png"), plot = p3, width = 6, height = 4.5, units = "in")
-
-p3 <- p3 +
   theme(
     panel.grid.major.x = element_line(colour = "lightgrey", size = 0.25),
     panel.grid.minor.x = element_line(colour = "lightgrey", size = 0.25),
@@ -1853,9 +1576,16 @@ p3 <- p3 +
     axis.title.x = element_blank(), #element_text(size = axis_title_size_large),
     axis.text.y = element_blank(),
     axis.ticks.x = element_blank(),
-    axis.ticks.y = element_blank(),
-    legend.text = element_text(size = 12)
+    axis.ticks.y = element_blank()#,
+    ## plot.margin = margin(0.5, 0, 0.5, 0, unit = "cm")
   )
+
+p3 <-
+  p3 +
+  ## plot_layout(nrow = 2, ncol = 1, guides = "collect") &
+  theme(legend.title = element_blank(),
+        legend.position = "bottom",
+        legend.text = element_text(size = 12))
 
 ggsave(file.path(output_dir, "figS1_alt1.png"), plot = p3, width = 6, height = 4.5, units = "in")
 
@@ -2324,8 +2054,6 @@ predictions = open_dataset(
   filter(model %in% c("P", "P_T", "NAO_P_T"))
 predictions$model = factor(predictions$model, levels = model_levels, labels = model_labels)
 predictions <- predictions %>% mutate(obs = Q_95_obs, exp = Q_95_exp)
-
-predictions <- predictions %>% filter(model %in% c("P", "PT"))
 
 p1 = predictions %>% filter(ID %in% ids_best[1] & subset %in% "full") %>% myplotfun11()
 p2 = predictions %>% filter(ID %in% ids_best[2] & subset %in% "full") %>% myplotfun11()

@@ -5,7 +5,9 @@ configfile: CONFIG
 
 include: 'Snakefile_0'
 
-AGGR = ['yr2', 'yr2to9', 'yr2to9_lag', 'yr2to5', 'yr2to5_lag']
+AGGR = ['yr2', 'yr2to9', 'yr2to9_lag', 'yr2to5', 'yr2to5_lag', 'yr6to9', 'yr6to9_lag']
+# AGGR_PLOT = ['yr2', 'yr2to9_lag', 'yr2to5_lag']
+AGGR_PLOT = ['yr2', 'yr2to5_lag', 'yr2to9_lag', 'yr6to9_lag']
 EXPM = ['hindcast', 'observed']
 
 EXP1_DIRECTORY = os.path.join(RESULTS_DIRECTORY, 'exp1')
@@ -16,14 +18,7 @@ ANALYSIS_DIRECTORY = os.path.join(EXP1_DIRECTORY, 'analysis')
 
 rule all:
     input:
-        'results/exp1/fig/fig1.png',
-        'results/exp1/fig/fig2.png',
-        'results/exp1/fig/fig3.png',
-        'results/exp1/fig/fig4.png',
-        'results/exp1/fig/figS1.png',
-        'results/exp1/fig/figS2.png',
-        'results/exp1/fig/figS3.png',
-        'results/exp1/fig/figS4.png'
+        expand('results/exp1/fig/{aggr_plot}', aggr_plot = AGGR_PLOT)
 
 rule select_stations:
     input:
@@ -130,14 +125,9 @@ rule make_plots:
         script='workflow/scripts/make-plots-exp1.R',
         config='config/config.yml'
     output:
-        'results/exp1/fig/fig1.png',
-        'results/exp1/fig/fig2.png',
-        'results/exp1/fig/fig3.png',
-        'results/exp1/fig/fig4.png',
-        'results/exp1/fig/figS1.png',
-        'results/exp1/fig/figS2.png',
-        'results/exp1/fig/figS3.png',
-        'results/exp1/fig/figS4.png'
+        directory('results/exp1/fig/{aggr_plot}')
+    wildcard_constraints:
+        aggr_plot='|'.join([aggr for aggr in AGGR_PLOT])
     params:
         outputdir='results/exp1'
     resources:
@@ -146,6 +136,6 @@ rule make_plots:
         partition = "short"
     shell:
         """
-        Rscript {input.script} {input.config} {params.outputdir}
+        Rscript {input.script} {input.config} {wildcards.aggr_plot} {params.outputdir}
         """
 
