@@ -17,6 +17,53 @@ library(yaml)
 
 options(dplyr.summarise.inform = FALSE)
 
+myplotfun0 <- function() {
+  north_atlantic_box <-
+    st_sf(a=1:2, geom=st_sfc(st_point(c(-10, 55)), st_point(c(25, 70))), crs=4326) %>%
+    st_bbox() %>%
+    st_as_sfc() %>%
+    densify(n=100) %>%
+    st_transform(crs = 27700)
+
+  ## TODO reproject
+  p =
+    ggplot() +
+    geom_sf(
+      data = europe_boundary,
+      color=NA,
+      fill="lightgrey"
+    ) +
+    geom_sf(
+      data = uk_boundary,
+      lwd = 0.1
+    ) +
+    geom_sf(
+      data = north_atlantic_box,
+      lwd = 0.25,
+      ## color="black",
+      fill=NA
+    ) +
+    coord_sf(
+      xlim = c(-15, 40),
+      ylim = c(50, 75),
+      default_crs = st_crs(4326)
+    ) +
+    theme_bw() +
+    theme(
+      strip.background = element_blank(),
+      legend.position = "bottom",
+      legend.box = "vertical",
+      legend.justification = "left",
+      legend.box.just = "left",
+      legend.title = element_text(size = legend_title_size),
+      legend.text = element_text(size = legend_label_size),
+      strip.text = element_blank(),
+      panel.grid.major = element_line(size = 0.25),
+      axis.text = element_text(size = axis_label_size_small),
+    )
+  p
+}
+
 myplotfun1 <- function(x, legend_title = "MSSS") {
   rdbu_pal = RColorBrewer::brewer.pal(9, "RdBu")
   p =
@@ -254,6 +301,8 @@ myplotfun3 <- function(x) {
     ) +
     scale_size_continuous(
       name = "Difference",
+      ## breaks = c(0.2, 0.4, 0.6),
+      ## labels = c("±0.2", "±0.4", "±0.6"),
       breaks = rep(c(0.2, 0.4, 0.6), 2),
       labels = c(c("±0.2", "±0.4", "±0.6"), rep("", 3)),
       limits = c(0, 0.75),
@@ -434,7 +483,8 @@ myplotfun6 <- function(x) {
     scale_color_manual(values = cbbPalette) +
     ## scale_fill_discrete(values = cbbPalette) +
     ## scale_colour_discrete(values = cbbPalette) +
-    facet_wrap(. ~ ID, ncol = 1) + #, labeller = label_parsed) +
+    ## facet_wrap(. ~ ID, ncol = 1) + #, labeller = label_parsed) +
+    ## labs(title = paste0("ID=", id)) +
     ylab(expression(Streamflow~(m^{3}~s^{-1}))) +
     xlab("") +
     scale_x_continuous(breaks = pretty_breaks()) +
@@ -656,10 +706,10 @@ myplotfun11 <- function(x) {
     geom_line(
       aes(y=Q50, x=year, colour=model), data=x
     ) +
-    facet_wrap(. ~ ID, ncol = 1) +
+    ## facet_wrap(. ~ ID, ncol = 1) +
     ylab(expression(Streamflow~(m^{3}~s^{-1}))) +
     xlab("") +
-    scale_x_continuous(breaks = pretty_breaks()) +
+    scale_x_continuous(breaks = pretty_breaks(), limits = c(1960, 2005)) +
     scale_y_continuous(breaks = pretty_breaks()) +
     scale_fill_manual(values = cbbPalette) +
     scale_color_manual(values = cbbPalette) +

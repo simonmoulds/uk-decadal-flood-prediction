@@ -11,6 +11,7 @@ library(patchwork)
 library(scales)
 library(arrow)
 library(sf)
+library(smoothr)
 ## library(gamlss)
 ## library(rnrfa)
 library(yaml)
@@ -18,22 +19,28 @@ library(yaml)
 options(dplyr.summarise.inform = FALSE)
 options(bitmapType = 'cairo') # For server
 
-## ## FOR TESTING:
-## config = read_yaml('config/config.yml')
-## aggregation_period = "yr2to5_lag"
-## outputroot = 'results/exp1'
-## cwd = 'workflow/scripts'
+## TODO
+## Select model based on AIC
+## How best to do this in cv context?
+## Add CRPSS to FigS2
+## Check response letter is up to date with changes
 
-## Extract configuration info
-if (sys.nframe() == 0L) {
-  args = commandArgs(trailingOnly=TRUE)
-  config = read_yaml(args[1])
-  aggregation_period = args[2]
-  outputroot = args[3]
-  args = commandArgs()
-  m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
-  cwd <- dirname(regmatches(args, m))
-}
+## FOR TESTING:
+config = read_yaml('config/config.yml')
+aggregation_period = "yr2to5_lag"
+outputroot = 'results/exp1'
+cwd = 'workflow/scripts'
+
+## ## Extract configuration info
+## if (sys.nframe() == 0L) {
+##   args = commandArgs(trailingOnly=TRUE)
+##   config = read_yaml(args[1])
+##   aggregation_period = args[2]
+##   outputroot = args[3]
+##   args = commandArgs()
+##   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
+##   cwd <- dirname(regmatches(args, m))
+## }
 source(file.path(cwd, "utils.R"))
 source(file.path(cwd, "plotting.R"))
 config[["modelling"]] <- parse_config_modelling(config)
@@ -71,6 +78,14 @@ obs_aggregation_period_label = aggregation_period_label
 ## ####################################################### ##
 ## ####################################################### ##
 
+load_model_fit <- function(config, experiment, aggregation_period) {
+  ds <- open_dataset(
+    file.path(outputroot, "analysis", experiment, "gamlss", aggregation_period, "fit")
+  ) %>% collect()
+  ds <- ds %>% mutate(period = aggregation_period)
+  ds
+}
+
 load_skill_scores <- function(config, experiment, aggregation_period) {
   ds <- open_dataset(
     file.path(outputroot, "analysis", experiment, "gamlss", aggregation_period, "prediction")
@@ -80,8 +95,8 @@ load_skill_scores <- function(config, experiment, aggregation_period) {
     summarize(
       crps_fcst = mean(crps_fcst),
       crps_ens_fcst = mean(crps_ens_fcst),
-      crps_climat = mean(crps_climat),
-      aic=mean(aic)
+      crps_climat = mean(crps_climat)#,
+      ## aic=mean(aic)
     ) %>%
     ## mutate(crpss = 1 - (crps_fcst / crps_climat)) %>%
     mutate(crpss = 1 - (crps_ens_fcst / crps_climat)) %>% # TODO check
@@ -260,22 +275,36 @@ p2 <- p2 +
   theme(axis.title = element_blank())
 
 p3 <- p3 + coord_fixed(ratio = 3)
-rdbu_pal = brewer.pal(11, "RdBu")
+rdbu_pal = brewer.pal(12, "RdBu")
+mylabelfun <- function(breaks) {
+  int_breaks <- as.integer(breaks * 1000)
+  idx <- sapply(int_breaks, FUN=function(x) isTRUE(all.equal(x %% 200, 0)))
+  labs <- formatC(breaks, digits=1, format="f")
+  labs[!idx] <- ""
+  labs
+}
 p1 <- p1 +
   scale_fill_stepsn(
-    colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
-    breaks = seq(-0.4, 0.8, 0.2),
-    limits = c(-0.3, 0.9)
+    ## colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
+    ## breaks = seq(-0.4, 0.8, 0.2),
+    ## limits = c(-0.3, 0.9)
+    colours = rev(rdbu_pal)[c(4:6, 7:11)], #[3:9],
+    breaks = seq(-0.2, 0.6, 0.1),
+    limits = c(-0.3, 0.7),
+    labels=mylabelfun
   )
 p2 <- p2 +
   scale_fill_stepsn(
-    colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
-    breaks = seq(-0.4, 0.8, 0.2),
-    limits = c(-0.3, 0.9)
+    colours = rev(rdbu_pal)[c(4:6, 7:11)], #[3:9],
+    breaks = seq(-0.2, 0.6, 0.1),
+    limits = c(-0.3, 0.7),
+    labels=mylabelfun
+    ## colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
+    ## breaks = seq(-0.4, 0.8, 0.2),
+    ## limits = c(-0.3, 0.9)
   )
 p2 <- p2 + theme(axis.ticks.y = element_blank(), axis.text.y = element_blank())
 p2 <- p2 + guides(shape = "none")
-
 obs_skill_scores_subset <-
   obs_skill_scores %>%
   filter(model %in% c("P", "PT", "NAOPT")) %>%
@@ -538,46 +567,352 @@ p2 <- p2 +
         strip.text = element_blank(),
         panel.grid.major = element_line(size = 0.25))
 
+p3 <- myplotfun0()
+p3 <- p3 +
+  theme(axis.title = element_blank(),
+        axis.text.x = element_text(size = axis_label_size),
+        axis.text.y = element_text(size = axis_label_size),
+        panel.grid.major = element_line(size = 0.25))
+
 p1 <- p1 +
   scale_fill_stepsn(
-    colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
-    breaks = seq(-0.4, 0.8, 0.2),
-    limits = c(-0.3, 0.9)
+    ## colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
+    ## breaks = seq(-0.4, 0.8, 0.2),
+    ## limits = c(-0.3, 0.9)
+    colours = rev(rdbu_pal)[c(4:6, 7:11)], #[3:9],
+    breaks = seq(-0.2, 0.6, 0.1),
+    limits = c(-0.3, 0.7),
+    labels=mylabelfun
   )
 p2 <- p2 +
   scale_fill_stepsn(
-    colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
-    breaks = seq(-0.4, 0.8, 0.2),
-    limits = c(-0.3, 0.9)
+    colours = rev(rdbu_pal)[c(4:6, 7:11)], #[3:9],
+    breaks = seq(-0.2, 0.6, 0.1),
+    limits = c(-0.3, 0.7),
+    labels=mylabelfun
+    ## colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
+    ## breaks = seq(-0.4, 0.8, 0.2),
+    ## limits = c(-0.3, 0.9)
   )
 p2 <- p2 + theme(axis.ticks.y = element_blank(), axis.text.y = element_blank())
-p2 <- p2 + guides(shape = "none")
 
-p = p1 + p2 + plot_layout(widths = c(2, 2), ncol = 2, nrow = 1)
-p = p +
-  plot_layout(guides = "collect") &
-  theme(legend.position = "bottom",
-        legend.box = "vertical",
-        legend.justification = "left",
-        legend.box.just = "left",
-        legend.margin = margin(0, 0, 0, 0, unit = "cm"))
+## Schematic
+d <- tibble(
+  Q = c(3.5, 5, 8, 10.5),
+  Lead = 1,
+  ## Period = 8,
+  Period = 4,
+  Init = c(1979, 1980, 1981, 1982)
+) %>%
+  mutate(Start = Init + Lead, End = Start + Period - 1)
 
-p$patches$plots[[1]] =
-  p$patches$plots[[1]] +
-  labs(tag = "a") +
-  theme(plot.tag.position = c(0.096, 0.98),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
-p =
-  p +
-  labs(tag = "b") +
-  theme(plot.tag.position = c(0.0195, 0.98),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
+cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+library(ggnewscale)
+p4 <- ggplot(d) +
+  geom_segment(
+    data = d,
+    aes(x = Start, y = Q, xend = End, yend = Q, colour = "Forecast period"),
+    size = 1.5,
+    alpha = .5
+  ) +
+  geom_segment(
+    data = d,
+    aes(x = Init, y = Q, xend = Start, yend = Q, colour = "Lead time"),
+    size = 1.5,
+    alpha = .5
+  ) +
+  scale_color_discrete(
+    name = "",
+    limits = c("Lead time", "Forecast period"),
+    guide = guide_legend(ncol = 1),
+    type = cbbPalette
+  ) +
+  new_scale_color() +
+  geom_point(
+    data = d %>%
+      gather(-Q, -Lead, -Period, key = key, value = value) %>%
+      mutate(
+        key = factor(
+          key,
+          levels = c("Init", "Start", "End"),
+          labels = c("Initialization", "Period start", "Period end")
+        )
+      ),
+    aes(x = value, y = Q, colour= key),
+    size = 2.5
+  ) +
+  scale_color_discrete(
+    name = "",
+    guide = guide_legend(ncol = 1),
+    type = cbbPalette
+  ) +
+  scale_y_continuous(
+    name = "X", #expression(bar(Y)),
+    limits = c(0, 17)
+  ) +
+  scale_x_continuous(
+    name="",
+    breaks=seq(1978, 1991, by = 2),
+    ## limits=c(1978.5, 1991.5),
+    limits=c(1978.5, 1988.5),
+    expand = c(0, 0)
+  ) +
+  theme_bw() +
+  theme(
+    legend.title = element_text(size = legend_title_size),
+    legend.text = element_text(size = legend_label_size),
+    ## panel.grid.major.x = element_line(colour = "lightgrey", size = 0.25),
+    ## panel.grid.minor.x = element_line(colour = "lightgrey", size = 0.25),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    axis.title.y = element_text(size = axis_title_size, margin = margin(0, -0.5, 0, 0, unit="cm")),
+    axis.title.x = element_blank(), #element_text(size = axis_title_size_large),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(size = axis_label_size),
+    ## axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position = "bottom",
+    plot.margin = margin(0.5, 0, 0.5, 0, unit = "cm")
+  )
 
-ggsave(file.path(output_dir, "fig1_grl.png"), plot = p, width = 6, height = 6, units = "in")
+g <- ggplot_build(p)
+blue <- "#8DA0CB"
+green <- "#FC8D62"
+turquoise <- "#FC8D62"
+
+## Discharge
+period_length = 4
+d <-
+  open_dataset(file.path(outputroot, "nrfa-discharge-summaries")) %>%
+  collect() %>%
+  filter(ID %in% 21017 & clim_season %in% "DJFM" & season_year %in% 1978:1991) %>%
+  mutate(Q_95_multiyear = rollapply(Q_95, period_length, mean, align = "left", fill = NA)) %>%
+  mutate(Start = season_year, End = Start + period_length - 1) %>%
+  dplyr::select(clim_season, season_year, Q_95, Q_95_multiyear, Start, End) %>%
+  mutate(group = ifelse(season_year %in% seq(1983, 1983 + period_length - 1), "a", "b")) %>%
+  mutate(Q_95_multiyear = ifelse(season_year %in% 1983, Q_95_multiyear, NA)) %>%
+  mutate(Init = Start - 1)
+
+p5 <- ggplot(d) +
+  geom_segment(
+    data = d,
+    aes(x = Start, y = Q_95_multiyear, xend = End, yend = Q_95_multiyear, colour = "Aggregation period"),
+    size = 1.5,
+    alpha = .5
+  ) +
+  scale_color_discrete(
+    name = "",
+    limits = c("Lead time", "Forecast period"),
+    guide = guide_legend(ncol = 1),
+    type = cbbPalette
+  ) +
+  scale_color_manual(
+    name = "",
+    values = turquoise,
+    limits = c("Aggregation period"),
+    guide = "none"
+  ) +
+  new_scale_color() +
+  geom_point(
+    data = d %>%
+      dplyr::select(-group, -Init) %>%
+      na.omit() %>%
+      gather(-(clim_season:Q_95_multiyear), key = key, value = value) %>%
+      mutate(
+        key = factor(
+          key,
+          levels = c("Start", "End"),
+          labels = c("Period start", "Period end")
+        )
+      ),
+    aes(x = value, y = Q_95_multiyear, colour= key),
+    size = 2.5
+  ) +
+  scale_color_manual(
+    name = "",
+    values = c(green, blue),
+    guide = "none"
+  ) +
+  new_scale_color() +
+  geom_point(
+    data = d,
+    aes(x = season_year, y = Q_95, colour = group)
+  ) +
+  scale_color_manual(
+    name = "",
+    values = c(turquoise, "darkgrey"),
+    guide = "none"
+  ) +
+  scale_x_continuous(
+    name="",
+    breaks=seq(1978, 1991, by = 2),
+    ## limits=c(1978.5, 1991.5),
+    limits=c(1978.5, 1988.5),
+    expand = c(0, 0)
+  ) +
+  scale_y_continuous(name = "Q") +
+  theme_bw() +
+  theme(
+    ## panel.grid.major.x = element_line(colour = "lightgrey", size = 0.25),
+    ## panel.grid.minor.x = element_line(colour = "lightgrey", size = 0.25),
+    legend.title = element_text(size = legend_title_size),
+    legend.text = element_text(size = legend_label_size),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    axis.title.y = element_text(size = axis_title_size, margin = margin(0, -0.5, 0, 0, unit="cm")),
+    axis.title.x = element_blank(), #element_text(size = axis_title_size_large),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(size = axis_label_size),
+    ## axis.ticks.x = element_blank(),
+    axis.ticks.y = element_blank(),
+    plot.margin = margin(0.5, 0, 0.5, 0, unit = "cm")
+  )
+
+design <- "
+AAAAAAAACCC
+BBBBBBBBCCC
+"
+
+p4 <- p4 +
+  theme(
+    plot.margin = margin(0, 0, 0, 0),
+    legend.margin = margin(0, 0, 0, -1, unit="cm")
+  )
+p5 <- p5 +
+  theme(
+    plot.margin = margin(0, 0, 0.25, 0, unit="cm"),
+    legend.margin = margin(0, 0, 0, -1, unit="cm"),
+    axis.text.x = element_blank()
+  )
+
+p5 <- p5 + labs(title = "a") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p4 <- p4 + labs(title = "b") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+
+p0 <- p5 + p4 + guide_area() + plot_layout(design=design, guides = "collect") & theme(plot.background = element_blank())
+
+## plot_layout(nrow = 2, ncol = 1, guides = "collect") &
+##   theme(legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = 8)) #legend_label_size))
+##
+## p$patches$plots[[1]] =
+##   p$patches$plots[[1]] +
+##   labs(tag = "a") +
+##   theme(plot.tag.position = c(0.04, 1.01),
+##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+## p = p +
+##   labs(tag = "b") +
+##   theme(plot.tag.position = c(0.04, 1.01),
+##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+
+## ggsave(file.path(output_dir, "figS1.png"), plot = p, width = 6, height = 6, units = "in")
+
+design <- "
+AAAABBBBCCC
+AAAABBBBCCC
+AAAABBBBDDD
+AAAABBBBDDD
+"
+pp1 <- p1 +
+  guides(
+    fill = guide_colorbar(
+      title="CRPSS",
+      title.position="top",
+      frame.colour = "black",
+      ticks.colour = "black",
+      frame.linewidth = 0.25,
+      ticks.linewidth = 0.25,
+      ## barwidth = 12,
+      ## barheight = 0.75,
+      barwidth = 6,
+      barheight = 0.4,
+      order = 2
+    )) ##+
+  ## theme(legend.spacing.y = unit(0.2, "cm"),
+  ##       legend.margin = margin(0, 0, -0.5, 0, unit="cm"))
+
+pp2 <- p2 +
+  guides(
+    fill = guide_colorbar(
+      title="CRPSS",
+      title.position="top",
+      frame.colour = "black",
+      ticks.colour = "black",
+      frame.linewidth = 0.25,
+      ticks.linewidth = 0.25,
+      ## barwidth = 12,
+      ## barheight = 0.75,
+      barwidth = 6,
+      barheight = 0.4,
+      order = 2
+    )) ##+
+  ## theme(legend.spacing.y = unit(0.2, "cm"),
+  ##       legend.margin = margin(0, 0, -0.5, 0, unit="cm"))
+
+pp3 <- p3 + theme(plot.margin = margin(0, 0, 0, 0, unit="cm"))
+
+pp1 <- pp1 + labs(title = "c") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+pp2 <- pp2 + labs(title = "d") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+pp3 <- pp3 + labs(title = "e") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+
+p = pp1 + pp2 + pp3 + guide_area() + plot_layout(design=design, guides="collect") & theme(legend.spacing.y = unit(0.2, "cm"), legend.margin = margin(0, 0, 0, 0, unit="cm"), plot.background = element_blank())
+
+## ## Add figure labels
+## p$patches$plots[[1]] =
+##   p$patches$plots[[1]] +
+##   labs(tag = "a") +
+##   theme(plot.tag.position = c(0.145, 1.02),
+##         plot.tag = element_text(size = tag_label_size, face="bold"))
+## p$patches$plots[[2]] =
+##   p$patches$plots[[2]] +
+##   labs(tag = "b") +
+##   theme(plot.tag.position = c(0.05, 1.02),
+##         plot.tag = element_text(size = tag_label_size, face="bold"))
+## p$patches$plots[[3]] =
+##   p$patches$plots[[3]] +
+##   labs(tag = "c") +
+##   theme(plot.tag.position = c(0.155, 1.04),
+##         plot.tag = element_text(size = tag_label_size, face="bold"))
+## p =
+##   p +
+##   labs(tag = "c") +
+##   theme(plot.tag.position = c(0.5, 0.5),
+##         plot.tag = element_text(size = tag_label_size, face="bold"))
+
+## Now use cowplot
+p = plot_grid(p0, p, nrow=2, align="v", rel_heights = c(1, 1.25))
+
+ggsave(file.path(output_dir, "fig1.png"), plot = p, width = 6, height = 6.05, units = "in")
+
+## p = p1 + p2 + plot_layout(widths = c(2, 2), ncol = 2, nrow = 1)
+## p = p +
+##   plot_layout(guides = "collect") &
+##   theme(legend.position = "bottom",
+##         legend.box = "vertical",
+##         legend.justification = "left",
+##         legend.box.just = "left",
+##         legend.margin = margin(0, 0, 0, 0, unit = "cm"))
+
+## p$patches$plots[[1]] =
+##   p$patches$plots[[1]] +
+##   labs(tag = "a") +
+##   theme(plot.tag.position = c(0.096, 0.98),
+##         plot.tag = element_text(
+##           hjust = 0, vjust = 0, size = tag_label_size, face="bold"
+##         ))
+## p =
+##   p +
+##   labs(tag = "b") +
+##   theme(plot.tag.position = c(0.0195, 0.98),
+##         plot.tag = element_text(
+##           hjust = 0, vjust = 0, size = tag_label_size, face="bold"
+##         ))
+
+## ggsave(file.path(output_dir, "fig1_grl.png"), plot = p, width = 6, height = 5.75, units = "in")
 
 ## ## ####################################################### ##
 ## ## ####################################################### ##
@@ -697,7 +1032,8 @@ ggsave(file.path(output_dir, "fig1_grl.png"), plot = p, width = 6, height = 6, u
 ## ####################################################### ##
 
 ## all_skill_measures <- c("ps", "srel", "sme", "aic", "acc", "msss")
-all_skill_measures <- c("aic", "crps_fcst", "crps_ens_fcst", "crps_climat", "crpss")
+## all_skill_measures <- c("aic", "crps_fcst", "crps_ens_fcst", "crps_climat", "crpss")
+all_skill_measures <- c("crps_fcst", "crps_ens_fcst", "crps_climat", "crpss")
 skill_scores_subset =
   skill_scores %>%
   filter(model %in% c("P", "PT", "NAOPT")) %>%
@@ -710,18 +1046,18 @@ skill_scores_subset =
   mutate(skill_diff = best_n - full)
 
 p4 <- myplotfun444(skill_scores_subset %>% filter(model %in% c("P", "PT") & period %in% aggregation_period_label), legend_title = toupper(skill_measure))
-sample_size <-
-  skill_scores_subset %>%
-  filter(model %in% c("P", "PT")) %>%
-  group_by(model) %>%
-  summarize(n = n()) %>%
-  mutate(x = c(1, 2), y = -0.8, lab = paste0("italic(n)==", n))
-p4 <- p4 +
-  geom_text(
-    data = sample_size,
-    aes(x, y, label = lab),
-    parse = TRUE, vjust = -0.7, nudge_x = 0, size = 2
-  )
+## sample_size <-
+##   skill_scores_subset %>%
+##   filter(model %in% c("P", "PT")) %>%
+##   group_by(model) %>%
+##   summarize(n = n()) %>%
+##   mutate(x = c(1, 2), y = -0.8, lab = paste0("italic(n)==", n))
+## p4 <- p4 +
+##   geom_text(
+##     data = sample_size,
+##     aes(x, y, label = lab),
+##     parse = TRUE, vjust = -0.7, nudge_x = 0, size = 2
+##   )
 
 skill_scores_subset <-
   skill_scores_subset %>% ungroup() %>%
@@ -746,7 +1082,9 @@ skill <- gauge_stns %>% left_join(skill) %>% na.omit()
 p2 = myplotfun3(skill) # %>% filter(period %in% aggregation_period_label))
 p2 = p2 +
   guides(
-    shape = guide_legend(order = 1),
+    shape = guide_legend(
+      order = 1#, direction = "vertical"
+    ),
     size = guide_legend(
       order = 2, nrow = 3,
       byrow = FALSE,
@@ -755,7 +1093,7 @@ p2 = p2 +
     ),
     fill = guide_legend(
       order = 3,
-      override.aes = list(shape = 21, fill = c("#FC8D62", "#66C2A5"))
+      override.aes = list(shape = 21, fill = c("#FC8D62", "#66C2A5"))#, direction = "vertical"
     )
   )
 p2 = p2 + theme(legend.margin = margin(0, 0, 0, 0, unit = "cm"))
@@ -785,20 +1123,19 @@ p3 <- myplotfun22(
   legend_title = toupper(skill_measure)
 )
 
-sample_size <-
-  skill_scores_subset %>%
-  group_by(subset, model) %>%
-  summarize(n=n()) %>%
-  group_by(subset) %>%
-  summarize(n = floor(mean(n))) %>%
-  mutate(x = c(1.5, 3.5), y = -0.8, lab = paste0("italic(n)==", n))
-
-p3 <- p3 +
-  geom_text(
-    data = sample_size,
-    aes(x, y, label = lab),
-    parse = TRUE, vjust = -0.7, nudge_x = 0, size = 2
-  )
+## sample_size <-
+##   skill_scores_subset %>%
+##   group_by(subset, model) %>%
+##   summarize(n=n()) %>%
+##   group_by(subset) %>%
+##   summarize(n = floor(mean(n))) %>%
+##   mutate(x = c(1.5, 3.5), y = -0.8, lab = paste0("italic(n)==", n))
+## p3 <- p3 +
+##   geom_text(
+##     data = sample_size,
+##     aes(x, y, label = lab),
+##     parse = TRUE, vjust = -0.7, nudge_x = 0, size = 2
+##   )
 
 ## Signif [one-sided Wilcoxon signed rank test]
 x <- skill_scores_subset %>%
@@ -842,11 +1179,20 @@ skill = myfun(
 p1 = myplotfun5(skill, legend_title = toupper(skill_measure))
 rdbu_pal = brewer.pal(11, "RdBu")
 p1 <- p1 +
+  ## scale_fill_stepsn(
+  ##   colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
+  ##   breaks = seq(-0.4, 0.8, 0.2),
+  ##   limits = c(-0.3, 0.9)
+  ## ) +
   scale_fill_stepsn(
-    colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
-    breaks = seq(-0.4, 0.8, 0.2),
-    limits = c(-0.3, 0.9)
-  ) +
+    colours = rev(rdbu_pal)[c(4:6, 7:11)], #[3:9],
+    breaks = seq(-0.2, 0.6, 0.1),
+    limits = c(-0.3, 0.7),
+    labels=mylabelfun
+    ## colours = rev(rdbu_pal)[c(4:5, 7:11)], #[3:9],
+    ## breaks = seq(-0.4, 0.8, 0.2),
+    ## limits = c(-0.3, 0.9)
+  )
   theme(legend.position = "right")
 
 n_pt <- table(skill$model)[["PT"]]
@@ -883,56 +1229,108 @@ p1 <- p1 +
         strip.text = element_blank(),
         panel.grid.major = element_line(size = 0.25))
 
-p <- p1 + p2 + p3 + p4 + plot_layout(nrow = 2, ncol = 2)
-p <- p + plot_layout(heights = c(2, 1), widths = c(2, 2, 2))
+## design <- "
+## AAAABBBBCCCC
+## AAAABBBBCCCC
+## AAAABBBBDDDD
+## AAAABBBBDDDD
+## AAAABBBB####
+## "
 
-p$patches$plots[[1]] =
-  p$patches$plots[[1]] +
-  labs(tag = "a") +
-  theme(plot.tag.position = c(0.15, 0.92),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
-p$patches$plots[[2]] =
-  p$patches$plots[[2]] +
-  labs(tag = "b") +
-  theme(plot.tag.position = c(0.125, 0.92),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
-p$patches$plots[[3]] =
-  p$patches$plots[[3]] +
-  labs(tag = "c") +
-  theme(plot.tag.position = c(0.15, 1.025),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
-p =
-  p +
-  labs(tag = "d") +
-  theme(plot.tag.position = c(0.125, 1.025),
-        plot.tag = element_text(
-          hjust = 0, vjust = 0, size = tag_label_size, face="bold"
-        ))
+p1 <- p1 +
+  theme(
+    plot.margin = margin(0, 0, 0, 0),
+    legend.margin = margin(0, 0, 0, 0),
+    legend.key.size = unit(1, 'lines'),
+    legend.box.spacing = unit(.25, 'cm')
+  ) +
+  guides(
+    fill = guide_colorbar(
+      title="CRPSS",
+      title.position="top",
+      frame.colour = "black",
+      ticks.colour = "black",
+      frame.linewidth = 0.25,
+      ticks.linewidth = 0.25,
+      barwidth = 0.5,
+      barheight = 8,
+      order = 2
+    ))
 
-ggsave(file.path(output_dir, "fig2.png"), plot = p, width = 6, height = 6, units = "in")
+p2 <- p2 +
+  theme(
+    plot.margin = margin(0, 0, 0, 0),
+    legend.margin=margin(0, 0, 0, 0),
+    legend.key.size = unit(1, 'lines'),
+    legend.box.spacing = unit(0.25, 'cm'),
+    legend.text = element_text(margin = margin(0, 0, 0, 0))
+  )
+## p1 <- p1 + theme(legend.position = "bottom")
+## p2 <- p2 + theme(legend.position = "bottom")
 
-## Figure 2 alternative without boxplots
-p <- p1 + p2 + plot_layout(nrow = 1, ncol = 2)
-p <- p + plot_layout(widths = c(2, 2))
+design = "
+AAAABBBB
+AAAABBBB
+AAAABBBB
+AAAABBBB
+CCCCDDDD
+CCCCDDDD"
 
-p$patches$plots[[1]] =
-  p$patches$plots[[1]] +
-  labs(tag = "a") +
-  theme(plot.tag.position = c(0.145, 0.94),
-        plot.tag = element_text(size = tag_label_size, face="bold"))
-p =
-  p +
-  labs(tag = "b") +
-  theme(plot.tag.position = c(0.14, 0.94),
-        plot.tag = element_text(size = tag_label_size, face="bold"))
+p1 <- p1 + labs(title = "a") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p2 <- p2 + labs(title = "b") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p3 <- p3 + labs(title = "c") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p4 <- p4 + labs(title = "d") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
 
-ggsave(file.path(output_dir, "fig2_alt1.png"), plot = p, width = 6, height = 4.5, units = "in")
+p <- p1 + p2 + p3 + p4 + plot_layout(design = design)
+
+## p <- p1 + p2 + p3 + p4 + plot_layout(nrow = 2, ncol = 2)
+## p <- p + plot_layout(heights = c(2, 1), widths = c(2, 2, 2))
+
+## p$patches$plots[[1]] =
+##   p$patches$plots[[1]] +
+##   labs(tag = "a") +
+##   theme(plot.tag.position = c(0.15, 0.92),
+##         plot.tag = element_text(
+##           hjust = 0, vjust = 0, size = tag_label_size, face="bold"
+##         ))
+## p$patches$plots[[2]] =
+##   p$patches$plots[[2]] +
+##   labs(tag = "b") +
+##   theme(plot.tag.position = c(0.125, 0.92),
+##         plot.tag = element_text(
+##           hjust = 0, vjust = 0, size = tag_label_size, face="bold"
+##         ))
+## p$patches$plots[[3]] =
+##   p$patches$plots[[3]] +
+##   labs(tag = "c") +
+##   theme(plot.tag.position = c(0.15, 1.025),
+##         plot.tag = element_text(
+##           hjust = 0, vjust = 0, size = tag_label_size, face="bold"
+##         ))
+## p =
+##   p +
+##   labs(tag = "d") +
+##   theme(plot.tag.position = c(0.125, 1.025),
+##         plot.tag = element_text(
+##           hjust = 0, vjust = 0, size = tag_label_size, face="bold"
+##         ))
+
+ggsave(file.path(output_dir, "fig2.png"), plot = p, width = 6, height = 5.6, units = "in")
+
+## ## Figure 2 alternative without boxplots
+## p <- p1 + p2 + plot_layout(nrow = 1, ncol = 2)
+## p <- p + plot_layout(widths = c(2, 2))
+## p$patches$plots[[1]] =
+##   p$patches$plots[[1]] +
+##   labs(tag = "a") +
+##   theme(plot.tag.position = c(0.145, 0.94),
+##         plot.tag = element_text(size = tag_label_size, face="bold"))
+## p =
+##   p +
+##   labs(tag = "b") +
+##   theme(plot.tag.position = c(0.14, 0.94),
+##         plot.tag = element_text(size = tag_label_size, face="bold"))
+## ggsave(file.path(output_dir, "fig2_alt1.png"), plot = p, width = 6, height = 4.5, units = "in")
 
 ## ## ####################################################### ##
 ## ## ####################################################### ##
@@ -1103,10 +1501,19 @@ predictions <- predictions %>% mutate(obs = Q_95_obs, exp = Q_95_exp)
 
 library(viridis)
 p1 = predictions %>% filter(ID %in% ids_best[1] & model %in% models_best[1]) %>% myplotfun6()
+p1 <- p1 + labs(title = paste0("ID=", ids_best[1])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
+
 p2 = predictions %>% filter(ID %in% ids_best[2] & model %in% models_best[2]) %>% myplotfun6()
+p2 <- p2 + labs(title = paste0("ID=", ids_best[2])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
+
 p3 = predictions %>% filter(ID %in% ids_best[3] & model %in% models_best[3]) %>% myplotfun6()
+p3 <- p3 + labs(title = paste0("ID=", ids_best[3])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
+
 p4 = predictions %>% filter(ID %in% ids_best[4] & model %in% models_best[4]) %>% myplotfun6()
+p4 <- p4 + labs(title = paste0("ID=", ids_best[4])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
+
 p5 = predictions %>% filter(ID %in% ids_best[5] & model %in% models_best[5]) %>% myplotfun6()
+p5 <- p5 + labs(title = paste0("ID=", ids_best[5])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 format_p_value = function(p_value) {
   if (p_value < 0.01) {
@@ -1237,6 +1644,7 @@ p6 =
              size = 1.75)
 
 p1 = p1 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 ## legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -1244,6 +1652,7 @@ p1 = p1 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p2 = p2 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0.25, unit="cm"),
                 strip.text = element_text(size = strip_label_size),
                 ## legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -1251,6 +1660,7 @@ p2 = p2 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p3 = p3 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 ## legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -1258,6 +1668,7 @@ p3 = p3 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p4 = p4 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 ## legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -1265,6 +1676,7 @@ p4 = p4 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p5 = p5 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0.25, unit="cm"),
                 strip.text = element_text(size = strip_label_size),
                 ## legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -1272,14 +1684,14 @@ p5 = p5 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p6 = p6 + theme(panel.grid.major = element_line(size = 0.25),
+                plot.margin = margin(0, 0, 0, 0),
                 axis.title = element_blank(),
                 axis.text = element_text(size = axis_label_size_small))
 
 p = p1 + p2 + p3 + p4 + p5 + p6 +
   plot_layout(ncol = 3, nrow = 2, widths = c(2, 2, 2)) & theme(legend.position = "bottom")
-p = p + plot_layout(guides = "collect")
-
-ggsave(file.path(output_dir, "fig3.png"), plot = p, width = 5, height = 5, units = "in")
+p = p + plot_layout(guides = "collect") & theme(legend.margin = margin(0, 0, 0, 0), legend.key.size = unit(1, 'lines'), legend.box.spacing = unit(0, 'cm'))
+ggsave(file.path(output_dir, "fig3.png"), plot = p, width = 5, height = 4.25, units = "in")
 
 ## ## ####################################################### ##
 ## ## ####################################################### ##
@@ -1467,25 +1879,68 @@ r2_P = substitute(R^2~"="~r2, list(r2=r2_P)) %>% as.expression
 r2_PT = substitute(R^2~"="~r2, list(r2=r2_PT)) %>% as.expression
 
 cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
-p = myplotfun9(x, legend_title = toupper(skill_measure))
+## p = myplotfun9(x, legend_title = toupper(skill_measure))
+## p =
+##   p +
+##   scale_x_continuous(
+##     ## name=paste0(toupper(skill_measure), " (Observations)"),
+##     name=expression(R^{2}~"(Observations)"),
+##     ## breaks=c(-0.2, 0, 0.2, 0.4, 0.6, 0.8),
+##     ## limits=c(-0.2, 0.4)
+##     breaks=seq(0, 1, by = 0.2),
+##     limits=c(0, 0.7)
+##   ) +
+##   ## geom_vline(xintercept = 0, size = 0.25) +
+##   geom_hline(yintercept = 0, size = 0.25) +
+##   scale_color_manual(name = "Model", values = cbbPalette) +
+##   geom_smooth(method = "lm", se = FALSE) +
+##   geom_text(x=0.425, y=0.38, label=r2_P, show.legend = FALSE, color=cbbPalette[1], size=4) +
+##   geom_text(x=0.6, y=0.2, label=r2_PT, show.legend = FALSE, color=cbbPalette[2], size=4) +
+##   theme(
+##     ## legend.position = "right",
+##     legend.position = "bottom",
+##     panel.grid = element_blank(),
+##     axis.title.y = element_text(size = axis_title_size),
+##     axis.text.y = element_text(size = axis_label_size),
+##     axis.text.x = element_text(size = axis_label_size),
+##     axis.title.x = element_text(size = axis_title_size),
+##     legend.title = element_text(size = legend_title_size),
+##     legend.text = element_text(size = legend_label_size))
+library(ggpubr)
+p <- ggscatter(x, x="R2", y="skill_diff", color="model", add = "reg.line", conf.int = FALSE, shape = 21, palette = cbbPalette)
+p <- p +
+  stat_cor(
+    aes(color=model),
+    show.legend = FALSE,
+    digits=2,
+    p.accuracy = 0.001,
+    ## r.accuracy = 0.01,
+    label.y = c(0.7, 0.6)
+  ) +
+  stat_regline_equation(
+    ## aes(color=model),
+    aes(label = ..eq.label.., color=model),
+    show.legend = FALSE,
+    label.x = 0.25,
+    label.y = c(0.7, 0.6)
+  )
+
 p =
   p +
+    scale_y_continuous(
+      name=paste0("\u0394 ", "CRPSS", " (Predictions)"),
+      breaks=c(-0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8),
+      limits=c(-0.8, 0.8)
+    ) +
   scale_x_continuous(
-    ## name=paste0(toupper(skill_measure), " (Observations)"),
     name=expression(R^{2}~"(Observations)"),
-    ## breaks=c(-0.2, 0, 0.2, 0.4, 0.6, 0.8),
-    ## limits=c(-0.2, 0.4)
     breaks=seq(0, 1, by = 0.2),
     limits=c(0, 0.7)
   ) +
-  ## geom_vline(xintercept = 0, size = 0.25) +
   geom_hline(yintercept = 0, size = 0.25) +
   scale_color_manual(name = "Model", values = cbbPalette) +
-  geom_smooth(method = "lm", se = FALSE) +
-  geom_text(x=0.425, y=0.38, label=r2_P, show.legend = FALSE, color=cbbPalette[1], size=4) +
-  geom_text(x=0.6, y=0.2, label=r2_PT, show.legend = FALSE, color=cbbPalette[2], size=4) +
+  theme_bw() +
   theme(
-    ## legend.position = "right",
     legend.position = "bottom",
     panel.grid = element_blank(),
     axis.title.y = element_text(size = axis_title_size),
@@ -2311,7 +2766,8 @@ skill_scores_subset =
 skill =
   skill_scores_subset %>%
   group_by(ID, subset, period) %>%
-  filter(aic == min(aic)) %>%
+  ## filter(aic == min(aic)) %>%
+  filter(crpss == max(crpss)) %>%
   arrange(desc(!!sym(skill_measure)))
 ids_best = head(skill$ID, n=5)
 ids_worst = tail(skill$ID, n=5)
@@ -2328,17 +2784,30 @@ predictions <- predictions %>% mutate(obs = Q_95_obs, exp = Q_95_exp)
 predictions <- predictions %>% filter(model %in% c("P", "PT"))
 
 p1 = predictions %>% filter(ID %in% ids_best[1] & subset %in% "full") %>% myplotfun11()
+p1 <- p1 + labs(title = paste0("ID=", ids_best[1])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
+
 p2 = predictions %>% filter(ID %in% ids_best[2] & subset %in% "full") %>% myplotfun11()
+p2 <- p2 + labs(title = paste0("ID=", ids_best[2])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 p3 = predictions %>% filter(ID %in% ids_best[3] & subset %in% "full") %>% myplotfun11()
+p3 <- p3 + labs(title = paste0("ID=", ids_best[3])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 p4 = predictions %>% filter(ID %in% ids_best[4] & subset %in% "full") %>% myplotfun11()
+p4 <- p4 + labs(title = paste0("ID=", ids_best[4])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 p5 = predictions %>% filter(ID %in% ids_best[5] & subset %in% "full") %>% myplotfun11()
+p5 <- p5 + labs(title = paste0("ID=", ids_best[5])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
+
 p6 = predictions %>% filter(ID %in% ids_worst[1] & subset %in% "full") %>% myplotfun11()
+p6 <- p6 + labs(title = paste0("ID=", ids_worst[1])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 p7 = predictions %>% filter(ID %in% ids_worst[2] & subset %in% "full") %>% myplotfun11()
+p7 <- p7 + labs(title = paste0("ID=", ids_worst[2])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 p8 = predictions %>% filter(ID %in% ids_worst[3] & subset %in% "full") %>% myplotfun11()
+p8 <- p8 + labs(title = paste0("ID=", ids_worst[3])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 p9 = predictions %>% filter(ID %in% ids_worst[4] & subset %in% "full") %>% myplotfun11()
+p9 <- p9 + labs(title = paste0("ID=", ids_worst[4])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 p10 = predictions %>% filter(ID %in% ids_worst[5] & subset %in% "full") %>% myplotfun11()
+p10 <- p10 + labs(title = paste0("ID=", ids_worst[15])) + theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p1 = p1 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -2346,6 +2815,7 @@ p1 = p1 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p2 = p2 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -2353,6 +2823,7 @@ p2 = p2 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p3 = p3 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -2360,6 +2831,7 @@ p3 = p3 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p4 = p4 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -2367,6 +2839,7 @@ p4 = p4 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p5 = p5 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -2374,6 +2847,7 @@ p5 = p5 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p6 = p6 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -2381,6 +2855,7 @@ p6 = p6 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p7 = p7 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -2388,6 +2863,7 @@ p7 = p7 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p8 = p8 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -2395,6 +2871,7 @@ p8 = p8 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p9 = p9 + theme(panel.grid = element_blank(),
+                plot.margin = margin(0, 0, 0, 0),
                 strip.text = element_text(size = strip_label_size),
                 legend.title = element_text(size = legend_title_size),
                 legend.text = element_text(size = legend_label_size),
@@ -2402,19 +2879,29 @@ p9 = p9 + theme(panel.grid = element_blank(),
                 axis.text.y = element_text(size = axis_label_size_small),
                 axis.text.x = element_text(size = axis_label_size_small))
 p10 = p10 + theme(panel.grid = element_blank(),
+                  plot.margin = margin(0, 0, 0, 0),
                   axis.title.y = element_blank(),
                   axis.text.y = element_text(size = axis_label_size_small),
                   axis.text.x = element_text(size = axis_label_size_small))
 
+p = p1 + p2 + p3 + p4 + p5 + p6 +
+  plot_layout(ncol = 3, nrow = 2, widths = c(2, 2, 2)) & theme(legend.position = "bottom")
+p = p + plot_layout(guides = "collect") & theme(legend.margin = margin(0, 0, 0, 0), legend.key.size = unit(1, 'lines'), legend.box.spacing = unit(0, 'cm'))
+
 p = p1 + p2 + p3 + p4 + p6 + p7 + p8 + p9 +
-  plot_layout(ncol = 4, nrow = 2) &
+  plot_layout(ncol = 4, nrow = 2, guides = "collect") &
   theme(
+    legend.margin = margin(0, 0, 0, 0),
     legend.position = "bottom",
     legend.box = "horizontal",
-    legend.box.just = "left"
+    legend.box.just = "left",
+    legend.key.size = unit(1, 'lines'),
+    legend.box.spacing = unit(0, 'cm')
   )
-p = p + plot_layout(guides = "collect")
-ggsave(file.path(output_dir, "figS2.png"), plot = p, width = 6, height = 5, units = "in")
+
+ggsave(file.path(output_dir, "figS2.png"), plot = p, width = 6, height = 4, units = "in")
+
+stop()
 
 ## ####################################################### ##
 ## ####################################################### ##
@@ -3093,682 +3580,682 @@ p =
 
 ggsave(file.path(output_dir, "figS3.png"), p, width = 6, height = 7, units = "in")
 
-## ####################################################### ##
-## ####################################################### ##
-##
-## Figure S3 presentation
-##
-## ####################################################### ##
-## ####################################################### ##
+## ## ####################################################### ##
+## ## ####################################################### ##
+## ##
+## ## Figure S3 presentation
+## ##
+## ## ####################################################### ##
+## ## ####################################################### ##
 
-full_fcst = load_fcst("yr2to9_lag")
-obs = read_parquet(
-  file.path(outputroot, "analysis", "yr2to9_lag", "obs_study_period.parquet")
-)
+## full_fcst = load_fcst("yr2to9_lag")
+## obs = read_parquet(
+##   file.path(outputroot, "analysis", "yr2to9_lag", "obs_study_period.parquet")
+## )
 
-ensemble_fcst = read_parquet(
-  file.path(outputroot, "analysis", "yr2to9_lag", "ensemble_fcst.parquet")
-)
+## ensemble_fcst = read_parquet(
+##   file.path(outputroot, "analysis", "yr2to9_lag", "ensemble_fcst.parquet")
+## )
 
-nao_matched_ensemble_fcst = read_parquet(
-  file.path(outputroot, "analysis", "yr2to9_lag", "matched_ensemble.parquet")
-)
+## nao_matched_ensemble_fcst = read_parquet(
+##   file.path(outputroot, "analysis", "yr2to9_lag", "matched_ensemble.parquet")
+## )
 
-## Select n best performing members
-nao_matched_ensemble_fcst_best =
-  nao_matched_ensemble_fcst %>%
-  group_by(source_id, member, init_year) %>%
-  group_by(init_year, variable) %>%
-  slice_min(error, n = 20)
+## ## Select n best performing members
+## nao_matched_ensemble_fcst_best =
+##   nao_matched_ensemble_fcst %>%
+##   group_by(source_id, member, init_year) %>%
+##   group_by(init_year, variable) %>%
+##   slice_min(error, n = 20)
 
-nao_matched_fcst =
-  nao_matched_ensemble_fcst_best %>%
-  group_by(init_year, variable) %>%
-  summarize(ens_mean = mean(value, na.rm=TRUE)) %>%
-  ungroup()
+## nao_matched_fcst =
+##   nao_matched_ensemble_fcst_best %>%
+##   group_by(init_year, variable) %>%
+##   summarize(ens_mean = mean(value, na.rm=TRUE)) %>%
+##   ungroup()
 
-## Join with observed data
-nao_matched_fcst =
-  nao_matched_fcst %>%
-  left_join(obs, by = c("init_year", "variable"))
+## ## Join with observed data
+## nao_matched_fcst =
+##   nao_matched_fcst %>%
+##   left_join(obs, by = c("init_year", "variable"))
 
-## Smooth
-nao_matched_fcst =
-  nao_matched_fcst %>%
-  group_by(variable) %>%
-  mutate(
-    ens_mean_lag = rollmean(
-      ens_mean,
-      4,
-      na.pad=TRUE,
-      align="right"
-    )
-  )
-
-## Adjust variance to match that of observed
-nao_matched_fcst =
-  nao_matched_fcst %>%
-  group_by(variable) %>%
-  mutate(ens_mean_var_adj = ens_mean * sd(obs) / sd(ens_mean, na.rm=T)) %>%
-  mutate(ens_mean_lag_std = ens_mean_lag / sd(ens_mean_lag, na.rm=T)) %>%
-  mutate(ens_mean_lag_var_adj = ens_mean_lag_std * sd(obs))
-
-## Plot 1 [analog of Fig 2a from Smith et al. 2020]
-acc = compute_acc(full_fcst, "nao", "obs", "full_ens_mean")
-pred_sd = compute_predictable_sd(full_fcst, "nao", "full_ens_mean")
-tot_sd = compute_total_sd(ensemble_fcst, "nao")
-rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
-
-plotdata =
-  full_fcst %>%
-  filter(variable %in% "nao") %>%
-  pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
-  filter(statistic %in% c("obs", "full_ens_mean", "ens_q95", "ens_q05")) %>%
-  mutate(statistic = factor(
-           statistic,
-           levels = c("obs", "full_ens_mean", "ens_q95", "ens_q05"),
-           labels = c("Observed", "Modelled", "ens_q95", "ens_q05")))
-
-p1 = ggplot() +
-  geom_ribbon(
-    data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
-    aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
-  ) +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
-    aes(x = init_year, y = value, color = statistic),
-    size = 1
-  ) +
-  geom_hline(yintercept=0, size=0.25) +
-  scale_y_continuous(
-    name="NAO anomaly (hPa)",
-    breaks=seq(-7.5, 7.5, by=2.5),
-    limits=c(-7.5, 7.5)
-  ) +
-  scale_x_continuous(
-    name = "",
-    breaks = seq(1960, 2000, 10),
-    limits = c(1960, 2005)
-  ) +
-  scale_color_discrete(
-    name = "",
-    labels = c("Observed", "Modelled"),
-    type = cbbPalette[2:1]
-  ) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.text = element_text(size = 9),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = 9),
-        axis.title.y = element_text(size = 9),
-        axis.text.y = element_text(size = 9),
-        axis.text.x = element_text(size = 9))
-
-## p1 =
-##   p1 +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = 7.5,
-##     label = make_annotation(acc, rpc),
-##     hjust=0,
-##     vjust=1,
-##     size = 9 / ggplot2::.pt
-##   ) +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = -7.5,
-##     label = "Raw ensemble",
-##     hjust=0,
-##     vjust=0,
-##     size = 9 / ggplot2::.pt
+## ## Smooth
+## nao_matched_fcst =
+##   nao_matched_fcst %>%
+##   group_by(variable) %>%
+##   mutate(
+##     ens_mean_lag = rollmean(
+##       ens_mean,
+##       4,
+##       na.pad=TRUE,
+##       align="right"
+##     )
 ##   )
 
-## Plot 2 [analog of Fig 2b from Smith et al. 2020]
-acc = compute_acc(full_fcst, "nao", "obs", "ens_mean_lag_var_adj")
-pred_sd = compute_predictable_sd(full_fcst, "nao", "ens_mean_lag")
-tot_sd = compute_total_sd(ensemble_fcst, "nao")
-rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+## ## Adjust variance to match that of observed
+## nao_matched_fcst =
+##   nao_matched_fcst %>%
+##   group_by(variable) %>%
+##   mutate(ens_mean_var_adj = ens_mean * sd(obs) / sd(ens_mean, na.rm=T)) %>%
+##   mutate(ens_mean_lag_std = ens_mean_lag / sd(ens_mean_lag, na.rm=T)) %>%
+##   mutate(ens_mean_lag_var_adj = ens_mean_lag_std * sd(obs))
 
-plotdata =
-  full_fcst %>%
-  filter(variable %in% "nao") %>%
-  pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
-  filter(statistic %in% c("obs", "ens_mean_lag_var_adj", "ens_mean_var_adj")) %>%
-  mutate(statistic = factor(
-           statistic,
-           levels = c("obs", "ens_mean_lag_var_adj", "ens_mean_var_adj") ,
-           labels = c("Observed", "Modelled", "ens_mean_var_adj"))) %>%
-  mutate(value = ifelse(init_year < 1964, NA, value))
+## ## Plot 1 [analog of Fig 2a from Smith et al. 2020]
+## acc = compute_acc(full_fcst, "nao", "obs", "full_ens_mean")
+## pred_sd = compute_predictable_sd(full_fcst, "nao", "full_ens_mean")
+## tot_sd = compute_total_sd(ensemble_fcst, "nao")
+## rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
 
-p2 = ggplot() +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("ens_mean_var_adj")),
-    aes(x = init_year, y = value), color = "#F8766D", size = 0.25
-  ) +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
-    aes(x = init_year, y = value, color = statistic),
-    size = 1
-  ) +
-  geom_hline(yintercept=0, size=0.25) +
-  scale_y_continuous(
-    name="NAO anomaly (hPa)",
-    breaks=seq(-7.5, 7.5, by=2.5),
-    limits=c(-7.5, 7.5)
-  ) +
-  scale_x_continuous(
-    name = "",
-    breaks = seq(1960, 2000, 10),
-    limits = c(1960, 2005)
-  ) +
-  scale_color_discrete(
-    name = "",
-    labels = c("Observed", "Modelled"),
-    type = cbbPalette[2:1]
-  ) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.text = element_text(size = 9),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = 9),
-        axis.title.y = element_text(size = 9),
-        axis.text.y = element_text(size = 9),
-        axis.text.x = element_text(size = 9))
+## plotdata =
+##   full_fcst %>%
+##   filter(variable %in% "nao") %>%
+##   pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+##   filter(statistic %in% c("obs", "full_ens_mean", "ens_q95", "ens_q05")) %>%
+##   mutate(statistic = factor(
+##            statistic,
+##            levels = c("obs", "full_ens_mean", "ens_q95", "ens_q05"),
+##            labels = c("Observed", "Modelled", "ens_q95", "ens_q05")))
 
-## p2 =
-##   p2 +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = 7.5,
-##     label = make_annotation(acc, rpc),
-##     hjust=0,
-##     vjust=1,
-##     size = 9 / ggplot2::.pt
+## p1 = ggplot() +
+##   geom_ribbon(
+##     data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
+##     aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
 ##   ) +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = -7.5,
-##     label = "Variance-adjusted and lagged",
-##     hjust=0,
-##     vjust=0,
-##     size = 9 / ggplot2::.pt
-##   )
-
-## Plot 3 [analog of Fig 2c from Smith et al. 2020]
-acc = compute_acc(full_fcst, "amv", "obs", "ens_mean_lag")
-pred_sd = compute_predictable_sd(full_fcst, "amv", "ens_mean_lag")
-tot_sd = compute_total_sd(ensemble_fcst, "amv")
-rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
-
-plotdata =
-  full_fcst %>%
-  filter(variable %in% "amv") %>%
-  pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
-  filter(statistic %in% c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag")) %>%
-  mutate(statistic = factor(
-           statistic,
-           levels = c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag"),
-           labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
-  mutate(value = ifelse(init_year < 1964, NA, value))
-
-p3 = ggplot() +
-  geom_ribbon(
-    data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
-    aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
-  ) +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
-    aes(x = init_year, y = value, color = statistic),
-    size = 1
-  ) +
-  geom_hline(yintercept=0, size=0.25) +
-  scale_y_continuous(
-    name="AMV anomaly (K)",
-    breaks=c(-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3),
-    limits=c(-0.3, 0.3)
-  ) +
-  scale_x_continuous(
-    name = "",
-    breaks = seq(1960, 2000, 10),
-    limits = c(1960, 2005)
-  ) +
-  scale_color_discrete(
-    name = "",
-    labels = c("Observed", "Modelled"),
-    type = cbbPalette[2:1]
-  ) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.text = element_text(size = 9),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = 9),
-        axis.title.y = element_text(size = 9),
-        axis.text.y = element_text(size = 9),
-        axis.text.x = element_text(size = 9))
-
-## p3 =
-##   p3 +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = 0.3,
-##     label = make_annotation(acc, rpc),
-##     hjust=0,
-##     vjust=1,
-##     size = 9 / ggplot2::.pt
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+##     aes(x = init_year, y = value, color = statistic),
+##     size = 1
 ##   ) +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = -0.3,
-##     label = "Raw lagged ensemble",
-##     hjust=0,
-##     vjust=0,
-##     size = 9 / ggplot2::.pt
-##   )
-
-## Plot 4 [analog of Fig 2d from Smith et al. 2020]
-acc = compute_acc(nao_matched_fcst, "amv", "obs", "ens_mean")
-pred_sd = compute_predictable_sd(nao_matched_fcst, "amv", "ens_mean")
-tot_sd = compute_total_sd(ensemble_fcst, "amv")
-rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
-
-plotdata =
-  nao_matched_fcst %>%
-  filter(variable %in% "amv") %>%
-  pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
-  filter(statistic %in% c("obs", "ens_mean_var_adj")) %>%
-  mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
-  mutate(value = ifelse(init_year < 1964, NA, value))
-
-p4 = ggplot() +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
-    aes(x = init_year, y = value, color = statistic),
-    size = 1
-  ) +
-  geom_hline(yintercept=0, size=0.25) +
-  scale_y_continuous(
-    name="AMV anomaly (K)",
-    breaks=c(-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3),
-    limits=c(-0.3, 0.3)
-  ) +
-  scale_x_continuous(
-    name = "",
-    breaks = seq(1960, 2000, 10),
-    limits = c(1960, 2005)
-  ) +
-  scale_color_discrete(
-    name = "",
-    labels = c("Observed", "Modelled"),
-    type = cbbPalette[2:1]
-  ) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.text = element_text(size = 9),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = 9),
-        axis.title.y = element_text(size = 9),
-        axis.text.y = element_text(size = 9),
-        axis.text.x = element_text(size = 9))
-
-## p4 =
-##   p4 +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = 0.3,
-##     label = make_annotation(acc, rpc),
-##     hjust=0,
-##     vjust=1,
-##     size = 9 / ggplot2::.pt
+##   geom_hline(yintercept=0, size=0.25) +
+##   scale_y_continuous(
+##     name="NAO anomaly (hPa)",
+##     breaks=seq(-7.5, 7.5, by=2.5),
+##     limits=c(-7.5, 7.5)
 ##   ) +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = -0.3,
-##     label = "NAO-matched",
-##     hjust=0,
-##     vjust=0,
-##     size = 9 / ggplot2::.pt
-##   )
-
-## Plot 5 [analog of Fig 2e from Smith et al. 2020]
-acc = compute_acc(full_fcst, "european_precip", "obs", "ens_mean_lag")
-pred_sd = compute_predictable_sd(full_fcst, "european_precip", "ens_mean_lag")
-tot_sd = compute_total_sd(ensemble_fcst, "european_precip")
-rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
-
-plotdata =
-  full_fcst %>%
-  filter(variable %in% "european_precip") %>%
-  pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
-  filter(statistic %in% c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag")) %>%
-  mutate(statistic = factor(
-           statistic,
-           levels = c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag"),
-           labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
-  mutate(value = ifelse(init_year < 1964, NA, value))
-
-p5 = ggplot() +
-  geom_ribbon(
-    data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
-    aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
-  ) +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
-    aes(x = init_year, y = value, color = statistic),
-    size = 1
-  ) +
-  geom_hline(yintercept=0, size=0.25) +
-  scale_y_continuous(
-    name=expression(atop("Northern European", paste("precipitation anomaly " (mm~day^{-1})))),
-    breaks=c(-0.5, -0.25, 0.0, 0.25, 0.5),
-    limits=c(-0.5, 0.5)
-  ) +
-  scale_x_continuous(
-    name = "",
-    breaks = seq(1960, 2000, 10),
-    limits = c(1960, 2005)
-  ) +
-  scale_color_discrete(
-    name = "",
-    labels = c("Observed", "Modelled"),
-    type = cbbPalette[2:1]
-  ) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.text = element_text(size = 9),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = 9),
-        axis.title.y = element_text(size = 9),
-        axis.text.y = element_text(size = 9),
-        axis.text.x = element_text(size = 9))
-
-## p5 =
-##   p5 +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = 0.5,
-##     label = make_annotation(acc, rpc),
-##     hjust=0,
-##     vjust=1,
-##     size = 9 / ggplot2::.pt
+##   scale_x_continuous(
+##     name = "",
+##     breaks = seq(1960, 2000, 10),
+##     limits = c(1960, 2005)
 ##   ) +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = -0.5,
-##     label = "Raw lagged ensemble",
-##     hjust=0,
-##     vjust=0,
-##     size = 9 / ggplot2::.pt
-##   )
-
-## Plot 6 [analog of Fig 2f from Smith et al. 2020]
-acc = compute_acc(nao_matched_fcst, "european_precip", "obs", "ens_mean")
-pred_sd = compute_predictable_sd(nao_matched_fcst, "european_precip", "ens_mean")
-tot_sd = compute_total_sd(ensemble_fcst, "european_precip")
-rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
-
-plotdata =
-  nao_matched_fcst %>%
-  filter(variable %in% "european_precip") %>%
-  pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
-  filter(statistic %in% c("obs", "ens_mean_var_adj")) %>%
-  mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
-  mutate(value = ifelse(init_year < 1964, NA, value))
-
-p6 = ggplot() +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
-    aes(x = init_year, y = value, color = statistic),
-    size = 1
-  ) +
-  geom_hline(yintercept=0, size=0.25) +
-  scale_y_continuous(
-    name=expression(atop("Northern European", paste("precipitation anomaly " (mm~day^{-1})))),
-    breaks=c(-0.5, -0.25, 0.0, 0.25, 0.5),
-    limits=c(-0.5, 0.5)
-  ) +
-  scale_x_continuous(
-    name = "",
-    breaks = seq(1960, 2000, 10),
-    limits = c(1960, 2005)
-  ) +
-  scale_color_discrete(
-    name = "",
-    labels = c("Observed", "Modelled"),
-    type = cbbPalette[2:1]
-  ) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.text = element_text(size = 9),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = 9),
-        axis.title.y = element_text(size = 9),
-        axis.text.y = element_text(size = 9),
-        axis.text.x = element_text(size = 9))
-
-## p6 =
-##   p6 +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = 0.5,
-##     label = make_annotation(acc, rpc),
-##     hjust=0,
-##     vjust=1,
-##     size = 9 / ggplot2::.pt
+##   scale_color_discrete(
+##     name = "",
+##     labels = c("Observed", "Modelled"),
+##     type = cbbPalette[2:1]
 ##   ) +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = -0.5,
-##     label = "NAO-matched",
-##     hjust=0,
-##     vjust=0,
-##     size = 9 / ggplot2::.pt
-##   )
+##   theme_bw() +
+##   theme(panel.grid = element_blank(),
+##         strip.text = element_text(size = 9),
+##         legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = 9),
+##         axis.title.y = element_text(size = 9),
+##         axis.text.y = element_text(size = 9),
+##         axis.text.x = element_text(size = 9))
 
-## Plot 7
-acc = compute_acc(full_fcst, "uk_temp", "obs", "ens_mean_lag")
-pred_sd = compute_predictable_sd(full_fcst, "uk_temp", "ens_mean_lag")
-tot_sd = compute_total_sd(ensemble_fcst, "uk_temp")
-rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+## ## p1 =
+## ##   p1 +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = 7.5,
+## ##     label = make_annotation(acc, rpc),
+## ##     hjust=0,
+## ##     vjust=1,
+## ##     size = 9 / ggplot2::.pt
+## ##   ) +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = -7.5,
+## ##     label = "Raw ensemble",
+## ##     hjust=0,
+## ##     vjust=0,
+## ##     size = 9 / ggplot2::.pt
+## ##   )
 
-plotdata =
-  full_fcst %>%
-  filter(variable %in% "uk_temp") %>%
-  pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
-  filter(statistic %in% c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag")) %>%
-  mutate(statistic = factor(
-           statistic,
-           levels = c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag"),
-           labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
-  mutate(value = ifelse(init_year < 1964, NA, value))
+## ## Plot 2 [analog of Fig 2b from Smith et al. 2020]
+## acc = compute_acc(full_fcst, "nao", "obs", "ens_mean_lag_var_adj")
+## pred_sd = compute_predictable_sd(full_fcst, "nao", "ens_mean_lag")
+## tot_sd = compute_total_sd(ensemble_fcst, "nao")
+## rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
 
-p7 = ggplot() +
-  geom_ribbon(
-    data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
-    aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
-  ) +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
-    aes(x = init_year, y = value, color = statistic),
-    size = 1
-  ) +
-  geom_hline(yintercept=0, size=0.25) +
-  scale_y_continuous(
-    name=expression(atop("Northern European", "temperature anomaly (K)")),
-    breaks=c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2),
-    limits=c(-1.2, 1.2)
-  ) +
-  scale_x_continuous(
-    name = "",
-    breaks = seq(1960, 2000, 10),
-    limits = c(1960, 2005)
-  ) +
-  scale_color_discrete(
-    name = "",
-    labels = c("Observed", "Modelled"),
-    type = cbbPalette[2:1]
-  ) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.text = element_text(size = 9),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = 9),
-        axis.title.y = element_text(size = 9),
-        axis.text.y = element_text(size = 9),
-        axis.text.x = element_text(size = 9))
+## plotdata =
+##   full_fcst %>%
+##   filter(variable %in% "nao") %>%
+##   pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+##   filter(statistic %in% c("obs", "ens_mean_lag_var_adj", "ens_mean_var_adj")) %>%
+##   mutate(statistic = factor(
+##            statistic,
+##            levels = c("obs", "ens_mean_lag_var_adj", "ens_mean_var_adj") ,
+##            labels = c("Observed", "Modelled", "ens_mean_var_adj"))) %>%
+##   mutate(value = ifelse(init_year < 1964, NA, value))
 
-## p7 =
-##   p7 +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = 1.2,
-##     label = make_annotation(acc, rpc),
-##     hjust=0,
-##     vjust=1,
-##     size = 9 / ggplot2::.pt
+## p2 = ggplot() +
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("ens_mean_var_adj")),
+##     aes(x = init_year, y = value), color = "#F8766D", size = 0.25
 ##   ) +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = -1.2,
-##     label = "Raw lagged ensemble",
-##     hjust=0,
-##     vjust=0,
-##     size = 9 / ggplot2::.pt
-##   )
-
-## Plot 8
-acc = compute_acc(nao_matched_fcst, "uk_temp", "obs", "ens_mean")
-pred_sd = compute_predictable_sd(nao_matched_fcst, "uk_temp", "ens_mean")
-tot_sd = compute_total_sd(ensemble_fcst, "uk_temp")
-rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
-
-plotdata =
-  nao_matched_fcst %>%
-  filter(variable %in% "uk_temp") %>%
-  pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
-  filter(statistic %in% c("obs", "ens_mean_var_adj")) %>%
-  mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
-  mutate(value = ifelse(init_year < 1964, NA, value))
-
-p8 = ggplot() +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
-    aes(x = init_year, y = value, color = statistic),
-    size = 1
-  ) +
-  geom_hline(yintercept=0, size=0.25) +
-  scale_y_continuous(
-    name=expression(atop("Northern European", "temperature anomaly (K)")),
-    breaks=c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2),
-    limits=c(-1.2, 1.2)
-  ) +
-  scale_x_continuous(
-    name = "",
-    breaks = seq(1960, 2000, 10),
-    limits = c(1960, 2005)
-  ) +
-  scale_color_discrete(
-    name = "",
-    labels = c("Observed", "Modelled"),
-    type = cbbPalette[2:1]
-  ) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.text = element_text(size = 9),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = 9),
-        axis.title.y = element_text(size = 9),
-        axis.text.y = element_text(size = 9),
-        axis.text.x = element_text(size = 9))
-
-## p8 =
-##   p8 +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = 1.2,
-##     label = make_annotation(acc, rpc),
-##     hjust=0,
-##     vjust=1,
-##     size = 9 / ggplot2::.pt
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+##     aes(x = init_year, y = value, color = statistic),
+##     size = 1
 ##   ) +
-##   annotate(
-##     geom = "text",
-##     x = 1960, y = -1.2,
-##     label = "NAO-matched",
-##     hjust=0,
-##     vjust=0,
-##     size = 9 / ggplot2::.pt
-##   )
+##   geom_hline(yintercept=0, size=0.25) +
+##   scale_y_continuous(
+##     name="NAO anomaly (hPa)",
+##     breaks=seq(-7.5, 7.5, by=2.5),
+##     limits=c(-7.5, 7.5)
+##   ) +
+##   scale_x_continuous(
+##     name = "",
+##     breaks = seq(1960, 2000, 10),
+##     limits = c(1960, 2005)
+##   ) +
+##   scale_color_discrete(
+##     name = "",
+##     labels = c("Observed", "Modelled"),
+##     type = cbbPalette[2:1]
+##   ) +
+##   theme_bw() +
+##   theme(panel.grid = element_blank(),
+##         strip.text = element_text(size = 9),
+##         legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = 9),
+##         axis.title.y = element_text(size = 9),
+##         axis.text.y = element_text(size = 9),
+##         axis.text.x = element_text(size = 9))
 
-p1 = p1 + theme(axis.title.y = element_text(size = 9))
-p3 = p3 + theme(axis.title.y = element_text(size = 9))
-p5 = p5 + theme(axis.title.y = element_text(size = 9))
-p7 = p7 + theme(axis.title.y = element_text(size = 9))
+## ## p2 =
+## ##   p2 +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = 7.5,
+## ##     label = make_annotation(acc, rpc),
+## ##     hjust=0,
+## ##     vjust=1,
+## ##     size = 9 / ggplot2::.pt
+## ##   ) +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = -7.5,
+## ##     label = "Variance-adjusted and lagged",
+## ##     hjust=0,
+## ##     vjust=0,
+## ##     size = 9 / ggplot2::.pt
+## ##   )
 
-p2 = p2 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
-p4 = p4 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
-p6 = p6 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
-p8 = p8 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
+## ## Plot 3 [analog of Fig 2c from Smith et al. 2020]
+## acc = compute_acc(full_fcst, "amv", "obs", "ens_mean_lag")
+## pred_sd = compute_predictable_sd(full_fcst, "amv", "ens_mean_lag")
+## tot_sd = compute_total_sd(ensemble_fcst, "amv")
+## rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
 
-## p = p1 + p2 + p3 + p4 + p7 + p8 + p5 + p6 + plot_layout(ncol = 2, nrow = 4) & theme(legend.position = "bottom")
-p = p1 + p2 + p7 + p8 + p5 + p6 + plot_layout(ncol = 2, nrow = 3) & theme(legend.position = "bottom")
-p = p +
-  plot_layout(guides = "collect")
-  theme(legend.position = "bottom",
-        ## legend.box = "vertical",
-        ## legend.justification = "left",
-        ## legend.box.just = "left",
-        legend.margin = margin(0, 0, 0, 0, unit = "cm"))
+## plotdata =
+##   full_fcst %>%
+##   filter(variable %in% "amv") %>%
+##   pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+##   filter(statistic %in% c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag")) %>%
+##   mutate(statistic = factor(
+##            statistic,
+##            levels = c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag"),
+##            labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
+##   mutate(value = ifelse(init_year < 1964, NA, value))
 
-## p$patches$plots[[1]] =
-##   p$patches$plots[[1]] +
-##   labs(tag = "a") +
-##   theme(plot.tag.position = c(0.215, 1),
-##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
-## p$patches$plots[[2]] =
-##   p$patches$plots[[2]] +
-##   labs(tag = "b") +
-##   theme(plot.tag.position = c(0.03, 1),
-##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
-## p$patches$plots[[3]] =
-##   p$patches$plots[[3]] +
-##   labs(tag = "c") +
-##   theme(plot.tag.position = c(0.215, 1),
-##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
-## p$patches$plots[[4]] =
-##   p$patches$plots[[4]] +
-##   labs(tag = "d") +
-##   theme(plot.tag.position = c(0.03, 1),
-##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
-## p$patches$plots[[5]] =
-##   p$patches$plots[[5]] +
-##   labs(tag = "e") +
-##   theme(plot.tag.position = c(0.215, 1),
-##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
-## p$patches$plots[[6]] =
-##   p$patches$plots[[6]] +
-##   labs(tag = "f") +
-##   theme(plot.tag.position = c(0.03, 1),
-##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
-## p$patches$plots[[7]] =
-##   p$patches$plots[[7]] +
-##   labs(tag = "g") +
-##   theme(plot.tag.position = c(0.215, 1),
-##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
-## p =
-##   p +
-##   labs(tag = "h") +
-##   theme(plot.tag.position = c(0.03, 1),
-##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+## p3 = ggplot() +
+##   geom_ribbon(
+##     data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
+##     aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
+##   ) +
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+##     aes(x = init_year, y = value, color = statistic),
+##     size = 1
+##   ) +
+##   geom_hline(yintercept=0, size=0.25) +
+##   scale_y_continuous(
+##     name="AMV anomaly (K)",
+##     breaks=c(-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3),
+##     limits=c(-0.3, 0.3)
+##   ) +
+##   scale_x_continuous(
+##     name = "",
+##     breaks = seq(1960, 2000, 10),
+##     limits = c(1960, 2005)
+##   ) +
+##   scale_color_discrete(
+##     name = "",
+##     labels = c("Observed", "Modelled"),
+##     type = cbbPalette[2:1]
+##   ) +
+##   theme_bw() +
+##   theme(panel.grid = element_blank(),
+##         strip.text = element_text(size = 9),
+##         legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = 9),
+##         axis.title.y = element_text(size = 9),
+##         axis.text.y = element_text(size = 9),
+##         axis.text.x = element_text(size = 9))
 
-ggsave(file.path(output_dir, "figS3_ppt.png"), p, width = 6, height = 7, units = "in")
+## ## p3 =
+## ##   p3 +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = 0.3,
+## ##     label = make_annotation(acc, rpc),
+## ##     hjust=0,
+## ##     vjust=1,
+## ##     size = 9 / ggplot2::.pt
+## ##   ) +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = -0.3,
+## ##     label = "Raw lagged ensemble",
+## ##     hjust=0,
+## ##     vjust=0,
+## ##     size = 9 / ggplot2::.pt
+## ##   )
+
+## ## Plot 4 [analog of Fig 2d from Smith et al. 2020]
+## acc = compute_acc(nao_matched_fcst, "amv", "obs", "ens_mean")
+## pred_sd = compute_predictable_sd(nao_matched_fcst, "amv", "ens_mean")
+## tot_sd = compute_total_sd(ensemble_fcst, "amv")
+## rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+## plotdata =
+##   nao_matched_fcst %>%
+##   filter(variable %in% "amv") %>%
+##   pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+##   filter(statistic %in% c("obs", "ens_mean_var_adj")) %>%
+##   mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
+##   mutate(value = ifelse(init_year < 1964, NA, value))
+
+## p4 = ggplot() +
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+##     aes(x = init_year, y = value, color = statistic),
+##     size = 1
+##   ) +
+##   geom_hline(yintercept=0, size=0.25) +
+##   scale_y_continuous(
+##     name="AMV anomaly (K)",
+##     breaks=c(-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3),
+##     limits=c(-0.3, 0.3)
+##   ) +
+##   scale_x_continuous(
+##     name = "",
+##     breaks = seq(1960, 2000, 10),
+##     limits = c(1960, 2005)
+##   ) +
+##   scale_color_discrete(
+##     name = "",
+##     labels = c("Observed", "Modelled"),
+##     type = cbbPalette[2:1]
+##   ) +
+##   theme_bw() +
+##   theme(panel.grid = element_blank(),
+##         strip.text = element_text(size = 9),
+##         legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = 9),
+##         axis.title.y = element_text(size = 9),
+##         axis.text.y = element_text(size = 9),
+##         axis.text.x = element_text(size = 9))
+
+## ## p4 =
+## ##   p4 +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = 0.3,
+## ##     label = make_annotation(acc, rpc),
+## ##     hjust=0,
+## ##     vjust=1,
+## ##     size = 9 / ggplot2::.pt
+## ##   ) +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = -0.3,
+## ##     label = "NAO-matched",
+## ##     hjust=0,
+## ##     vjust=0,
+## ##     size = 9 / ggplot2::.pt
+## ##   )
+
+## ## Plot 5 [analog of Fig 2e from Smith et al. 2020]
+## acc = compute_acc(full_fcst, "european_precip", "obs", "ens_mean_lag")
+## pred_sd = compute_predictable_sd(full_fcst, "european_precip", "ens_mean_lag")
+## tot_sd = compute_total_sd(ensemble_fcst, "european_precip")
+## rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+## plotdata =
+##   full_fcst %>%
+##   filter(variable %in% "european_precip") %>%
+##   pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+##   filter(statistic %in% c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag")) %>%
+##   mutate(statistic = factor(
+##            statistic,
+##            levels = c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag"),
+##            labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
+##   mutate(value = ifelse(init_year < 1964, NA, value))
+
+## p5 = ggplot() +
+##   geom_ribbon(
+##     data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
+##     aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
+##   ) +
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+##     aes(x = init_year, y = value, color = statistic),
+##     size = 1
+##   ) +
+##   geom_hline(yintercept=0, size=0.25) +
+##   scale_y_continuous(
+##     name=expression(atop("Northern European", paste("precipitation anomaly " (mm~day^{-1})))),
+##     breaks=c(-0.5, -0.25, 0.0, 0.25, 0.5),
+##     limits=c(-0.5, 0.5)
+##   ) +
+##   scale_x_continuous(
+##     name = "",
+##     breaks = seq(1960, 2000, 10),
+##     limits = c(1960, 2005)
+##   ) +
+##   scale_color_discrete(
+##     name = "",
+##     labels = c("Observed", "Modelled"),
+##     type = cbbPalette[2:1]
+##   ) +
+##   theme_bw() +
+##   theme(panel.grid = element_blank(),
+##         strip.text = element_text(size = 9),
+##         legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = 9),
+##         axis.title.y = element_text(size = 9),
+##         axis.text.y = element_text(size = 9),
+##         axis.text.x = element_text(size = 9))
+
+## ## p5 =
+## ##   p5 +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = 0.5,
+## ##     label = make_annotation(acc, rpc),
+## ##     hjust=0,
+## ##     vjust=1,
+## ##     size = 9 / ggplot2::.pt
+## ##   ) +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = -0.5,
+## ##     label = "Raw lagged ensemble",
+## ##     hjust=0,
+## ##     vjust=0,
+## ##     size = 9 / ggplot2::.pt
+## ##   )
+
+## ## Plot 6 [analog of Fig 2f from Smith et al. 2020]
+## acc = compute_acc(nao_matched_fcst, "european_precip", "obs", "ens_mean")
+## pred_sd = compute_predictable_sd(nao_matched_fcst, "european_precip", "ens_mean")
+## tot_sd = compute_total_sd(ensemble_fcst, "european_precip")
+## rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+## plotdata =
+##   nao_matched_fcst %>%
+##   filter(variable %in% "european_precip") %>%
+##   pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+##   filter(statistic %in% c("obs", "ens_mean_var_adj")) %>%
+##   mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
+##   mutate(value = ifelse(init_year < 1964, NA, value))
+
+## p6 = ggplot() +
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+##     aes(x = init_year, y = value, color = statistic),
+##     size = 1
+##   ) +
+##   geom_hline(yintercept=0, size=0.25) +
+##   scale_y_continuous(
+##     name=expression(atop("Northern European", paste("precipitation anomaly " (mm~day^{-1})))),
+##     breaks=c(-0.5, -0.25, 0.0, 0.25, 0.5),
+##     limits=c(-0.5, 0.5)
+##   ) +
+##   scale_x_continuous(
+##     name = "",
+##     breaks = seq(1960, 2000, 10),
+##     limits = c(1960, 2005)
+##   ) +
+##   scale_color_discrete(
+##     name = "",
+##     labels = c("Observed", "Modelled"),
+##     type = cbbPalette[2:1]
+##   ) +
+##   theme_bw() +
+##   theme(panel.grid = element_blank(),
+##         strip.text = element_text(size = 9),
+##         legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = 9),
+##         axis.title.y = element_text(size = 9),
+##         axis.text.y = element_text(size = 9),
+##         axis.text.x = element_text(size = 9))
+
+## ## p6 =
+## ##   p6 +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = 0.5,
+## ##     label = make_annotation(acc, rpc),
+## ##     hjust=0,
+## ##     vjust=1,
+## ##     size = 9 / ggplot2::.pt
+## ##   ) +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = -0.5,
+## ##     label = "NAO-matched",
+## ##     hjust=0,
+## ##     vjust=0,
+## ##     size = 9 / ggplot2::.pt
+## ##   )
+
+## ## Plot 7
+## acc = compute_acc(full_fcst, "uk_temp", "obs", "ens_mean_lag")
+## pred_sd = compute_predictable_sd(full_fcst, "uk_temp", "ens_mean_lag")
+## tot_sd = compute_total_sd(ensemble_fcst, "uk_temp")
+## rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+## plotdata =
+##   full_fcst %>%
+##   filter(variable %in% "uk_temp") %>%
+##   pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+##   filter(statistic %in% c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag")) %>%
+##   mutate(statistic = factor(
+##            statistic,
+##            levels = c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag"),
+##            labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
+##   mutate(value = ifelse(init_year < 1964, NA, value))
+
+## p7 = ggplot() +
+##   geom_ribbon(
+##     data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
+##     aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
+##   ) +
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+##     aes(x = init_year, y = value, color = statistic),
+##     size = 1
+##   ) +
+##   geom_hline(yintercept=0, size=0.25) +
+##   scale_y_continuous(
+##     name=expression(atop("Northern European", "temperature anomaly (K)")),
+##     breaks=c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2),
+##     limits=c(-1.2, 1.2)
+##   ) +
+##   scale_x_continuous(
+##     name = "",
+##     breaks = seq(1960, 2000, 10),
+##     limits = c(1960, 2005)
+##   ) +
+##   scale_color_discrete(
+##     name = "",
+##     labels = c("Observed", "Modelled"),
+##     type = cbbPalette[2:1]
+##   ) +
+##   theme_bw() +
+##   theme(panel.grid = element_blank(),
+##         strip.text = element_text(size = 9),
+##         legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = 9),
+##         axis.title.y = element_text(size = 9),
+##         axis.text.y = element_text(size = 9),
+##         axis.text.x = element_text(size = 9))
+
+## ## p7 =
+## ##   p7 +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = 1.2,
+## ##     label = make_annotation(acc, rpc),
+## ##     hjust=0,
+## ##     vjust=1,
+## ##     size = 9 / ggplot2::.pt
+## ##   ) +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = -1.2,
+## ##     label = "Raw lagged ensemble",
+## ##     hjust=0,
+## ##     vjust=0,
+## ##     size = 9 / ggplot2::.pt
+## ##   )
+
+## ## Plot 8
+## acc = compute_acc(nao_matched_fcst, "uk_temp", "obs", "ens_mean")
+## pred_sd = compute_predictable_sd(nao_matched_fcst, "uk_temp", "ens_mean")
+## tot_sd = compute_total_sd(ensemble_fcst, "uk_temp")
+## rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+## plotdata =
+##   nao_matched_fcst %>%
+##   filter(variable %in% "uk_temp") %>%
+##   pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+##   filter(statistic %in% c("obs", "ens_mean_var_adj")) %>%
+##   mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
+##   mutate(value = ifelse(init_year < 1964, NA, value))
+
+## p8 = ggplot() +
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+##     aes(x = init_year, y = value, color = statistic),
+##     size = 1
+##   ) +
+##   geom_hline(yintercept=0, size=0.25) +
+##   scale_y_continuous(
+##     name=expression(atop("Northern European", "temperature anomaly (K)")),
+##     breaks=c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2),
+##     limits=c(-1.2, 1.2)
+##   ) +
+##   scale_x_continuous(
+##     name = "",
+##     breaks = seq(1960, 2000, 10),
+##     limits = c(1960, 2005)
+##   ) +
+##   scale_color_discrete(
+##     name = "",
+##     labels = c("Observed", "Modelled"),
+##     type = cbbPalette[2:1]
+##   ) +
+##   theme_bw() +
+##   theme(panel.grid = element_blank(),
+##         strip.text = element_text(size = 9),
+##         legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = 9),
+##         axis.title.y = element_text(size = 9),
+##         axis.text.y = element_text(size = 9),
+##         axis.text.x = element_text(size = 9))
+
+## ## p8 =
+## ##   p8 +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = 1.2,
+## ##     label = make_annotation(acc, rpc),
+## ##     hjust=0,
+## ##     vjust=1,
+## ##     size = 9 / ggplot2::.pt
+## ##   ) +
+## ##   annotate(
+## ##     geom = "text",
+## ##     x = 1960, y = -1.2,
+## ##     label = "NAO-matched",
+## ##     hjust=0,
+## ##     vjust=0,
+## ##     size = 9 / ggplot2::.pt
+## ##   )
+
+## p1 = p1 + theme(axis.title.y = element_text(size = 9))
+## p3 = p3 + theme(axis.title.y = element_text(size = 9))
+## p5 = p5 + theme(axis.title.y = element_text(size = 9))
+## p7 = p7 + theme(axis.title.y = element_text(size = 9))
+
+## p2 = p2 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
+## p4 = p4 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
+## p6 = p6 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
+## p8 = p8 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
+
+## ## p = p1 + p2 + p3 + p4 + p7 + p8 + p5 + p6 + plot_layout(ncol = 2, nrow = 4) & theme(legend.position = "bottom")
+## p = p1 + p2 + p7 + p8 + p5 + p6 + plot_layout(ncol = 2, nrow = 3) & theme(legend.position = "bottom")
+## p = p +
+##   plot_layout(guides = "collect")
+##   theme(legend.position = "bottom",
+##         ## legend.box = "vertical",
+##         ## legend.justification = "left",
+##         ## legend.box.just = "left",
+##         legend.margin = margin(0, 0, 0, 0, unit = "cm"))
+
+## ## p$patches$plots[[1]] =
+## ##   p$patches$plots[[1]] +
+## ##   labs(tag = "a") +
+## ##   theme(plot.tag.position = c(0.215, 1),
+## ##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+## ## p$patches$plots[[2]] =
+## ##   p$patches$plots[[2]] +
+## ##   labs(tag = "b") +
+## ##   theme(plot.tag.position = c(0.03, 1),
+## ##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+## ## p$patches$plots[[3]] =
+## ##   p$patches$plots[[3]] +
+## ##   labs(tag = "c") +
+## ##   theme(plot.tag.position = c(0.215, 1),
+## ##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+## ## p$patches$plots[[4]] =
+## ##   p$patches$plots[[4]] +
+## ##   labs(tag = "d") +
+## ##   theme(plot.tag.position = c(0.03, 1),
+## ##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+## ## p$patches$plots[[5]] =
+## ##   p$patches$plots[[5]] +
+## ##   labs(tag = "e") +
+## ##   theme(plot.tag.position = c(0.215, 1),
+## ##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+## ## p$patches$plots[[6]] =
+## ##   p$patches$plots[[6]] +
+## ##   labs(tag = "f") +
+## ##   theme(plot.tag.position = c(0.03, 1),
+## ##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+## ## p$patches$plots[[7]] =
+## ##   p$patches$plots[[7]] +
+## ##   labs(tag = "g") +
+## ##   theme(plot.tag.position = c(0.215, 1),
+## ##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+## ## p =
+## ##   p +
+## ##   labs(tag = "h") +
+## ##   theme(plot.tag.position = c(0.03, 1),
+## ##         plot.tag = element_text(vjust = -0.7, size = tag_label_size, face="bold"))
+
+## ggsave(file.path(output_dir, "figS3_ppt.png"), p, width = 6, height = 7, units = "in")
 
 ## ####################################################### ##
 ## ####################################################### ##
@@ -3932,3 +4419,213 @@ p = p + plot_layout(guides = "collect")
 ##                                 hjust = 0, size = tag_label_size, face="bold"))
 
 ggsave(file.path(output_dir, "figS4_ppt.png"), plot = p, width = 6, height = 4.5, units = "in")
+
+## TEST
+fit <- load_model_fit(config, "hindcast", aggregation_period) %>% mutate(kurtosis=kurtosis-3)
+skill <- load_skill_scores(config, "hindcast", aggregation_period)
+x <- fit %>% left_join(skill)
+x_best <- x %>%
+  filter(model %in% c("P", "PT") & subset %in% "best_n") %>%
+  group_by(ID) %>%
+  filter(crpss==max(crpss)) %>%
+  myfun()
+
+x_best <-
+  x_best %>%
+  mutate(
+    mean = oob_squish(mean, c(-0.005, 0.005)),
+    variance = oob_squish(variance, c(0.95, 1.05)),
+    kurtosis = oob_squish(kurtosis, c(-2, 2)),
+    skewness = oob_squish(skewness, c(-1, 1))
+  )
+
+p1 <- myplotfunX(x_best, "mean")
+p1 <- p1 +
+  scale_fill_distiller(
+    type = "div",
+    palette = "RdBu",
+    direction = 1,
+    limits = c(-0.0050, 0.0050)
+  ) +
+  theme(
+    legend.position = "right",
+    plot.margin = margin(0, 0, 0, 0),
+    legend.margin = margin(0, 0.25, 0, 0, unit="cm"),
+    legend.key.size = unit(1, 'lines'),
+    legend.box.spacing = unit(.25, 'cm')
+  ) +
+  guides(
+    fill = guide_colorbar(
+      title="Mean",
+      title.position="top",
+      frame.colour = "black",
+      ticks.colour = "black",
+      frame.linewidth = 0.25,
+      ticks.linewidth = 0.25,
+      barwidth = 0.4,
+      barheight = 6
+    ))
+
+p2 <- myplotfunX(x_best, "variance")
+p2 <- p2 +
+  scale_fill_distiller(
+    type = "div",
+    palette = "RdBu",
+    direction = 1,
+    limits = c(0.95, 1.05)
+  ) +
+  theme(
+    legend.position = "right",
+    plot.margin = margin(0, 0, 0, 0),
+    legend.margin = margin(0, 0, 0, 0),
+    legend.key.size = unit(1, 'lines'),
+    legend.box.spacing = unit(.25, 'cm')
+  ) +
+  guides(
+    fill = guide_colorbar(
+      title="Variance",
+      title.position="top",
+      frame.colour = "black",
+      ticks.colour = "black",
+      frame.linewidth = 0.25,
+      ticks.linewidth = 0.25,
+      barwidth = 0.4,
+      barheight = 6
+    ))
+
+p3 <- myplotfunX(x_best, "kurtosis")
+p3 <- p3 +
+  scale_fill_distiller(
+    type = "div",
+    palette = "RdBu",
+    direction = 1,
+    limits = c(-2, 2)
+    ## limits = c(-1.5, 1.5)
+  ) +
+  theme(
+    legend.position = "right",
+    plot.margin = margin(0, 0, 0, 0),
+    legend.margin = margin(0, 0.25, 0, 0, unit="cm"),
+    legend.key.size = unit(1, 'lines'),
+    legend.box.spacing = unit(.25, 'cm')
+  ) +
+  guides(
+    fill = guide_colorbar(
+      title="Kurtosis",
+      title.position="top",
+      frame.colour = "black",
+      ticks.colour = "black",
+      frame.linewidth = 0.25,
+      ticks.linewidth = 0.25,
+      barwidth = 0.4,
+      barheight = 6
+    ))
+
+p4 <- myplotfunX(x_best, "skewness")
+p4 <- p4 +
+  scale_fill_distiller(
+    type = "div",
+    palette = "RdBu",
+    direction = 1,
+    limits = c(-1, 1)
+  ) +
+  theme(
+    legend.position = "right",
+    plot.margin = margin(0, 0, 0, 0),
+    legend.margin = margin(0, 0, 0, 0),
+    legend.key.size = unit(1, 'lines'),
+    legend.box.spacing = unit(.25, 'cm')
+  ) +
+  guides(
+    fill = guide_colorbar(
+      title="Skewness",
+      title.position="top",
+      frame.colour = "black",
+      ticks.colour = "black",
+      frame.linewidth = 0.25,
+      ticks.linewidth = 0.25,
+      barwidth = 0.4,
+      barheight = 6
+    ))
+
+p1 <- p1 + labs(title = "a") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p2 <- p2 + labs(title = "b") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p3 <- p3 + labs(title = "c") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p4 <- p4 + labs(title = "d") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+
+p <- p1 + p2 + p3 + p4 + plot_layout(ncol=2, nrow=2)
+
+ggsave(file.path(output_dir, "figS5.png"), plot = p, width = 6, height = 6, units = "in")
+
+myplotfunX <- function(x, var) {
+  rdbu_pal = RColorBrewer::brewer.pal(9, "RdBu")
+  p =
+    ggplot() +
+    geom_sf(
+      data = europe_boundary,
+      color=NA,
+      fill="lightgrey"
+    ) +
+    geom_sf(
+      data = uk_boundary,
+      lwd = 0.25
+    ) +
+    geom_sf(
+      data = x,
+      aes(fill = !!sym(var)),
+      ## size = 1.5,
+      shape = 21,
+      size = 2,
+      lwd = 0.1,
+      alpha = 0.8
+    ) +
+    ## facet_wrap(. ~ period, ncol = 1) +
+    coord_sf(
+      xlim = c(-8, 2),
+      ylim = c(50, 59),
+      default_crs = st_crs(4326)
+    ) +
+    ## scale_fill_distiller(type = "div", palette = "RdBu") + #colours = rdbu_pal) +
+    ## scale_shape_manual(values = c(21, 24, 22)) +
+    ## scale_fill_stepsn(
+    ##   colours = rdbu_pal,
+    ##   ## breaks = seq(-0.8, 0.8, 0.2),
+    ##   ## values = scales::rescale(c(-0.8, 0, 0.8)),
+    ##   ## limits = c(-0.3, 0.9)
+    ##   ## breaks = seq(-0.2, 0.8, 0.2),
+    ##   ## values = scales::rescale(c(-0.2, 0, 0.8)),
+    ##   ## limits = c(-0.1, 0.9)
+    ## ) +
+    theme_bw() +
+    theme(
+      strip.background = element_blank(),
+      legend.position = "bottom",
+      legend.box = "vertical",
+      legend.justification = "left",
+      legend.box.just = "left",
+      legend.title = element_text(size = legend_title_size),
+      legend.text = element_text(size = legend_label_size),
+      strip.text = element_blank(),
+      panel.grid.major = element_line(size = 0.25),
+      axis.text = element_text(size = axis_label_size_small),
+    ) ##+
+    ## guides(
+    ##   shape = guide_legend(
+    ##     title = "Model",
+    ##     title.position = "top",
+    ##     order = 1
+    ##   ),
+    ##   fill = guide_colorbar(
+    ##     title=legend_title, #"MSSS",
+    ##     title.position="top",
+    ##     frame.colour = "black",
+    ##     ticks.colour = "black",
+    ##     frame.linewidth = 0.25,
+    ##     ticks.linewidth = 0.25,
+    ##     barwidth = 12,
+    ##     barheight = 0.75,
+    ##     order = 2
+    ##   )
+    ## )
+  p
+}

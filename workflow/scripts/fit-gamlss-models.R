@@ -211,11 +211,11 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
 
 ## TESTS
 ## Compare custom implementation of crpss with that in easyVerification
-## ds <- open_dataset("results/exp1/analysis/hindcast/gamlss/yr2to5_lag/prediction/") %>% collect()
-## ids <- ds$ID %>% unique()
-## models <- ds$model %>% unique()
-## subsets <- ds$subset %>% unique()
-## years <- ds$year %>% unique() %>% sort()
+ds <- open_dataset("results/exp1/analysis/hindcast/gamlss/yr2to5_lag/prediction/") %>% collect()
+ids <- ds$ID %>% unique()
+models <- ds$model %>% unique()
+subsets <- ds$subset %>% unique()
+years <- ds$year %>% unique() %>% sort()
 
 ## ## Forecast dimensions
 ## n_space <- length(ids)
@@ -268,7 +268,7 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
 ##         strategy=list(type="crossval", blocklength=7),
 ##         na.rm=TRUE
 ##       )
-##       my_crpss <- 1 - (mean(x$crps_fcst) / mean(x$crps_climat))
+##       my_crpss <- 1 - (mean(x$crps_ens_fcst) / mean(x$crps_climat))
 ##       comp[[length(comp) + 1]] <- data.frame(id=ids[k], subset=subsets[j], model=models[i], ev_crpss=ev_crpss$skillscore, my_crpss=my_crpss)
 ##     }
 ##   }
@@ -276,3 +276,13 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
 
 ## df <- do.call("rbind", comp)
 ## df <- df %>% filter(subset %in% "best_n") %>% group_by(id) %>% filter(my_crpss==max(my_crpss))
+
+## p = ggplot(data=df, aes(x=ev_crpss, y=my_crpss)) +
+##   geom_point(pch=21) +
+##   geom_abline(intercept=0, slope=1) +
+##   xlim(c(-0.25, 0.5)) +
+##   ylim(c(-0.25, 0.5)) +
+##   coord_fixed() +
+##   theme_bw()
+
+## ggsave(filename="~/crpss_comparison.png", width=4, height=5)
