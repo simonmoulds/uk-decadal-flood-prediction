@@ -691,8 +691,8 @@ make_prediction <- function(newdata,
       }
       tbl[["crps_climat"]] = EnsCrps(ref_prediction_mat, obs)
 
-      ## ## Get AIC
-      ## tbl[["aic"]] = AIC(models[[nm]])
+      ## Get AIC
+      tbl[["aic"]] = AIC(models[[nm]])
 
       ## ## ## Check residuals
       ## ## checks <- check_residuals(models[[nm]])
@@ -712,6 +712,7 @@ make_prediction <- function(newdata,
       tbl[["crps_fcst"]] = NA
       tbl[["crps_ens_fcst"]] = NA
       tbl[["crps_climat"]] = NA
+      tbl[["aic"]] = NA
       for (qnm in quantile_names) {
         tbl[[qnm]] = NA
       }

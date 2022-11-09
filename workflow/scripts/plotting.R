@@ -604,7 +604,7 @@ myplotfun888 <- function(x) {
         ## ticks.linewidth = 0.25,
         barwidth = 16,
         ## barwidth = 12,
-        barheight = 0.75,
+        barheight = 0.6,
         order = 2
       )
     )
