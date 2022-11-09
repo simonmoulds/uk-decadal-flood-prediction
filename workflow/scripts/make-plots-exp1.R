@@ -1867,8 +1867,6 @@ p = p1 + p2 + p3 + p4 + p6 + p7 + p8 + p9 +
 
 ggsave(file.path(output_dir, "figS2.png"), plot = p, width = 6, height = 4, units = "in")
 
-stop()
-
 ## ####################################################### ##
 ## ####################################################### ##
 ##
@@ -1877,19 +1875,6 @@ stop()
 ## ####################################################### ##
 ## ####################################################### ##
 
-## full_fcst = load_fcst(aggregation_period)
-
-## obs = read_parquet(
-##   file.path(outputroot, "analysis", aggregation_period, "obs_study_period.parquet")
-## )
-
-## ensemble_fcst = read_parquet(
-##   file.path(outputroot, "analysis", aggregation_period, "ensemble_fcst.parquet")
-## )
-
-## nao_matched_ensemble_fcst = read_parquet(
-##   file.path(outputroot, "analysis", aggregation_period, "matched_ensemble.parquet")
-## )
 load_fcst <- function(aggregation_period) {
   fcst = read_parquet(
     file.path(outputroot, "analysis", aggregation_period, "ensemble_mean_fcst.parquet")
@@ -2010,153 +1995,156 @@ nao_matched_fcst =
   mutate(ens_mean_lag_var_adj = ens_mean_lag_std * sd(obs))
 
 ## Plot 1 [analog of Fig 2a from Smith et al. 2020]
-acc = compute_acc(full_fcst, "nao", "obs", "full_ens_mean")
-pred_sd = compute_predictable_sd(full_fcst, "nao", "full_ens_mean")
-tot_sd = compute_total_sd(ensemble_fcst, "nao")
-rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+p1 <- myplotfun_nao_raw(full_fcst)
+## ## myplotfun_nao_matched
+## acc = compute_acc(full_fcst, "nao", "obs", "full_ens_mean")
+## pred_sd = compute_predictable_sd(full_fcst, "nao", "full_ens_mean")
+## tot_sd = compute_total_sd(ensemble_fcst, "nao")
+## rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
 
-plotdata =
-  full_fcst %>%
-  filter(variable %in% "nao") %>%
-  pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
-  filter(statistic %in% c("obs", "full_ens_mean", "ens_q95", "ens_q05")) %>%
-  mutate(statistic = factor(
-           statistic,
-           levels = c("obs", "full_ens_mean", "ens_q95", "ens_q05"),
-           labels = c("Observed", "Modelled", "ens_q95", "ens_q05")))
+## plotdata =
+##   full_fcst %>%
+##   filter(variable %in% "nao") %>%
+##   pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+##   filter(statistic %in% c("obs", "full_ens_mean", "ens_q95", "ens_q05")) %>%
+##   mutate(statistic = factor(
+##            statistic,
+##            levels = c("obs", "full_ens_mean", "ens_q95", "ens_q05"),
+##            labels = c("Observed", "Modelled", "ens_q95", "ens_q05")))
 
-p1 = ggplot() +
-  geom_ribbon(
-    data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
-    aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
-  ) +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
-    aes(x = init_year, y = value, color = statistic)
-  ) +
-  geom_hline(yintercept=0, size=0.25) +
-  scale_y_continuous(
-    name="NAO anomaly (hPa)",
-    breaks=seq(-7.5, 7.5, by=2.5),
-    limits=c(-7.5, 7.5)
-  ) +
-  scale_x_continuous(
-    name = "",
-    breaks = seq(1960, 2000, 10),
-    limits = c(1960, 2005)
-  ) +
-  scale_color_discrete(
-    name = "",
-    labels = c("Observed", "Modelled"),
-    type = cbbPalette[2:1]
-  ) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.text = element_text(size = strip_label_size),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = legend_label_size),
-        axis.title.y = element_text(size = axis_title_size),
-        axis.text.y = element_text(size = axis_label_size_small),
-        axis.text.x = element_text(size = axis_label_size_small))
+## p1 = ggplot() +
+##   geom_ribbon(
+##     data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
+##     aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
+##   ) +
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+##     aes(x = init_year, y = value, color = statistic)
+##   ) +
+##   geom_hline(yintercept=0, size=0.25) +
+##   scale_y_continuous(
+##     name="NAO anomaly (hPa)",
+##     breaks=seq(-7.5, 7.5, by=2.5),
+##     limits=c(-7.5, 7.5)
+##   ) +
+##   scale_x_continuous(
+##     name = "",
+##     breaks = seq(1960, 2000, 10),
+##     limits = c(1960, 2005)
+##   ) +
+##   scale_color_discrete(
+##     name = "",
+##     labels = c("Observed", "Modelled"),
+##     type = cbbPalette[2:1]
+##   ) +
+##   theme_bw() +
+##   theme(panel.grid = element_blank(),
+##         strip.text = element_text(size = strip_label_size),
+##         legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = legend_label_size),
+##         axis.title.y = element_text(size = axis_title_size),
+##         axis.text.y = element_text(size = axis_label_size_small),
+##         axis.text.x = element_text(size = axis_label_size_small))
 
-## make_annotation <- function(acc, rpc) {
-##   annotation = paste0(
-##     "ACC = ", sprintf(acc$estimate, fmt = "%#.2f"), " ", format_p_value(acc$p.value), ", ",
-##     "RPC = ", sprintf(rpc, fmt = "%#.1f")
+## ## make_annotation <- function(acc, rpc) {
+## ##   annotation = paste0(
+## ##     "ACC = ", sprintf(acc$estimate, fmt = "%#.2f"), " ", format_p_value(acc$p.value), ", ",
+## ##     "RPC = ", sprintf(rpc, fmt = "%#.1f")
+## ##   )
+## ##   annotation
+## ## }
+
+## p1 =
+##   p1 +
+##   annotate(
+##     geom = "text",
+##     x = 1960, y = 7.5,
+##     label = make_annotation(acc, rpc),
+##     hjust=0,
+##     vjust=1,
+##     size = axis_label_size / ggplot2::.pt
+##   ) +
+##   annotate(
+##     geom = "text",
+##     x = 1960, y = -7.5,
+##     label = "Raw ensemble",
+##     hjust=0,
+##     vjust=0,
+##     size = axis_label_size / ggplot2::.pt
 ##   )
-##   annotation
-## }
-
-p1 =
-  p1 +
-  annotate(
-    geom = "text",
-    x = 1960, y = 7.5,
-    label = make_annotation(acc, rpc),
-    hjust=0,
-    vjust=1,
-    size = axis_label_size / ggplot2::.pt
-  ) +
-  annotate(
-    geom = "text",
-    x = 1960, y = -7.5,
-    label = "Raw ensemble",
-    hjust=0,
-    vjust=0,
-    size = axis_label_size / ggplot2::.pt
-  )
 
 ## Plot 2 [analog of Fig 2b from Smith et al. 2020]
-acc = compute_acc(full_fcst, "nao", "obs", "ens_mean_lag_var_adj")
-pred_sd = compute_predictable_sd(full_fcst, "nao", "ens_mean_lag")
-tot_sd = compute_total_sd(ensemble_fcst, "nao")
-rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+p2 <- myplotfun_nao_matched(full_fcst)
+## acc = compute_acc(full_fcst, "nao", "obs", "ens_mean_lag_var_adj")
+## pred_sd = compute_predictable_sd(full_fcst, "nao", "ens_mean_lag")
+## tot_sd = compute_total_sd(ensemble_fcst, "nao")
+## rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
 
-plotdata =
-  full_fcst %>%
-  filter(variable %in% "nao") %>%
-  pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
-  filter(statistic %in% c("obs", "ens_mean_lag_var_adj", "ens_mean_var_adj")) %>%
-  mutate(statistic = factor(
-           statistic,
-           levels = c("obs", "ens_mean_lag_var_adj", "ens_mean_var_adj") ,
-           labels = c("Observed", "Modelled", "ens_mean_var_adj"))) %>%
-  mutate(value = ifelse(init_year < 1964, NA, value))
+## plotdata =
+##   full_fcst %>%
+##   filter(variable %in% "nao") %>%
+##   pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+##   filter(statistic %in% c("obs", "ens_mean_lag_var_adj", "ens_mean_var_adj")) %>%
+##   mutate(statistic = factor(
+##            statistic,
+##            levels = c("obs", "ens_mean_lag_var_adj", "ens_mean_var_adj") ,
+##            labels = c("Observed", "Modelled", "ens_mean_var_adj"))) %>%
+##   mutate(value = ifelse(init_year < 1964, NA, value))
 
-p2 = ggplot() +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("ens_mean_var_adj")),
-    aes(x = init_year, y = value), color = "#F8766D", size = 0.25
-  ) +
-  geom_line(
-    data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
-    aes(x = init_year, y = value, color = statistic)
-  ) +
-  geom_hline(yintercept=0, size=0.25) +
-  scale_y_continuous(
-    name="NAO anomaly (hPa)",
-    breaks=seq(-7.5, 7.5, by=2.5),
-    limits=c(-7.5, 7.5)
-  ) +
-  scale_x_continuous(
-    name = "",
-    breaks = seq(1960, 2000, 10),
-    limits = c(1960, 2005)
-  ) +
-  scale_color_discrete(
-    name = "",
-    labels = c("Observed", "Modelled"),
-    type = cbbPalette[2:1]
-  ) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.text = element_text(size = strip_label_size),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = legend_label_size),
-        axis.title.y = element_text(size = axis_title_size),
-        axis.text.y = element_text(size = axis_label_size_small),
-        axis.text.x = element_text(size = axis_label_size_small))
+## p2 = ggplot() +
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("ens_mean_var_adj")),
+##     aes(x = init_year, y = value), color = "#F8766D", size = 0.25
+##   ) +
+##   geom_line(
+##     data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+##     aes(x = init_year, y = value, color = statistic)
+##   ) +
+##   geom_hline(yintercept=0, size=0.25) +
+##   scale_y_continuous(
+##     name="NAO anomaly (hPa)",
+##     breaks=seq(-7.5, 7.5, by=2.5),
+##     limits=c(-7.5, 7.5)
+##   ) +
+##   scale_x_continuous(
+##     name = "",
+##     breaks = seq(1960, 2000, 10),
+##     limits = c(1960, 2005)
+##   ) +
+##   scale_color_discrete(
+##     name = "",
+##     labels = c("Observed", "Modelled"),
+##     type = cbbPalette[2:1]
+##   ) +
+##   theme_bw() +
+##   theme(panel.grid = element_blank(),
+##         strip.text = element_text(size = strip_label_size),
+##         legend.title = element_blank(),
+##         legend.position = "bottom",
+##         legend.text = element_text(size = legend_label_size),
+##         axis.title.y = element_text(size = axis_title_size),
+##         axis.text.y = element_text(size = axis_label_size_small),
+##         axis.text.x = element_text(size = axis_label_size_small))
 
-p2 =
-  p2 +
-  annotate(
-    geom = "text",
-    x = 1960, y = 7.5,
-    label = make_annotation(acc, rpc),
-    hjust=0,
-    vjust=1,
-    size = axis_label_size / ggplot2::.pt
-  ) +
-  annotate(
-    geom = "text",
-    x = 1960, y = -7.5,
-    label = "Variance-adjusted and lagged",
-    hjust=0,
-    vjust=0,
-    size = axis_label_size / ggplot2::.pt
-  )
+## p2 =
+##   p2 +
+##   annotate(
+##     geom = "text",
+##     x = 1960, y = 7.5,
+##     label = make_annotation(acc, rpc),
+##     hjust=0,
+##     vjust=1,
+##     size = axis_label_size / ggplot2::.pt
+##   ) +
+##   annotate(
+##     geom = "text",
+##     x = 1960, y = -7.5,
+##     label = "Variance-adjusted and lagged",
+##     hjust=0,
+##     vjust=0,
+##     size = axis_label_size / ggplot2::.pt
+##   )
 
 ## Plot 3 [analog of Fig 2c from Smith et al. 2020]
 acc = compute_acc(full_fcst, "amv", "obs", "ens_mean_lag")
