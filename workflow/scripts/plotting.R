@@ -1346,7 +1346,7 @@ myplotfun12 <- function(x) {
 ##   p
 ## }
 
-myplotfun_nao_raw <- function(full_fcst) {
+myplotfun_nao_raw <- function(full_fcst, ensemble_fcst) {
   acc = compute_acc(full_fcst, "nao", "obs", "full_ens_mean")
   pred_sd = compute_predictable_sd(full_fcst, "nao", "full_ens_mean")
   tot_sd = compute_total_sd(ensemble_fcst, "nao")
@@ -1362,6 +1362,7 @@ myplotfun_nao_raw <- function(full_fcst) {
              levels = c("obs", "full_ens_mean", "ens_q95", "ens_q05"),
              labels = c("Observed", "Modelled", "ens_q95", "ens_q05")))
 
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
   p1 = ggplot() +
     geom_ribbon(
       data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
@@ -1418,7 +1419,7 @@ myplotfun_nao_raw <- function(full_fcst) {
   p1
 }
 
-myplotfun_nao_matched <- function(full_fcst) {
+myplotfun_nao_matched <- function(full_fcst, ensemble_fcst) {
   acc = compute_acc(full_fcst, "nao", "obs", "ens_mean_lag_var_adj")
   pred_sd = compute_predictable_sd(full_fcst, "nao", "ens_mean_lag")
   tot_sd = compute_total_sd(ensemble_fcst, "nao")
@@ -1435,6 +1436,7 @@ myplotfun_nao_matched <- function(full_fcst) {
              labels = c("Observed", "Modelled", "ens_mean_var_adj"))) %>%
     mutate(value = ifelse(init_year < 1964, NA, value))
 
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
   p2 = ggplot() +
     geom_line(
       data = plotdata %>% filter(statistic %in% c("ens_mean_var_adj")),
@@ -1489,4 +1491,500 @@ myplotfun_nao_matched <- function(full_fcst) {
       size = axis_label_size / ggplot2::.pt
     )
   p2
+}
+
+myplotfun_amv_raw <- function(full_fcst, ensemble_fcst) {
+  acc = compute_acc(full_fcst, "amv", "obs", "ens_mean_lag")
+  pred_sd = compute_predictable_sd(full_fcst, "amv", "ens_mean_lag")
+  tot_sd = compute_total_sd(ensemble_fcst, "amv")
+  rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+  plotdata =
+    full_fcst %>%
+    filter(variable %in% "amv") %>%
+    pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+    filter(statistic %in% c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag")) %>%
+    mutate(statistic = factor(
+             statistic,
+             levels = c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag"),
+             labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
+    mutate(value = ifelse(init_year < 1964, NA, value))
+
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  p3 = ggplot() +
+    geom_ribbon(
+      data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
+      aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
+    ) +
+    geom_line(
+      data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+      aes(x = init_year, y = value, color = statistic)
+    ) +
+    geom_hline(yintercept=0, size=0.25) +
+    scale_y_continuous(
+      name="AMV anomaly (K)",
+      breaks=c(-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3),
+      limits=c(-0.3, 0.3)
+    ) +
+    scale_x_continuous(
+      name = "",
+      breaks = seq(1960, 2000, 10),
+      limits = c(1960, 2005)
+    ) +
+    scale_color_discrete(
+      name = "",
+      labels = c("Observed", "Modelled"),
+      type = cbbPalette[2:1]
+    ) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          strip.text = element_text(size = strip_label_size),
+          legend.title = element_blank(),
+          legend.position = "bottom",
+          legend.text = element_text(size = legend_label_size),
+          axis.title.y = element_text(size = axis_title_size),
+          axis.text.y = element_text(size = axis_label_size_small),
+          axis.text.x = element_text(size = axis_label_size_small))
+
+  p3 =
+    p3 +
+    annotate(
+      geom = "text",
+      x = 1960, y = 0.3,
+      label = make_annotation(acc, rpc),
+      hjust=0,
+      vjust=1,
+      size = axis_label_size / ggplot2::.pt
+    ) +
+    annotate(
+      geom = "text",
+      x = 1960, y = -0.3,
+      label = "Raw lagged ensemble",
+      hjust=0,
+      vjust=0,
+      size = axis_label_size / ggplot2::.pt
+    )
+  p3
+}
+
+myplotfun_amv_matched <- function(nao_matched_fcst, ensemble_fcst) {
+  acc = compute_acc(nao_matched_fcst, "amv", "obs", "ens_mean")
+  pred_sd = compute_predictable_sd(nao_matched_fcst, "amv", "ens_mean")
+  tot_sd = compute_total_sd(ensemble_fcst, "amv")
+  rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+  plotdata =
+    nao_matched_fcst %>%
+    filter(variable %in% "amv") %>%
+    pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+    filter(statistic %in% c("obs", "ens_mean_var_adj")) %>%
+    mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
+    mutate(value = ifelse(init_year < 1964, NA, value))
+
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  p4 = ggplot() +
+    geom_line(
+      data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+      aes(x = init_year, y = value, color = statistic)
+    ) +
+    geom_hline(yintercept=0, size=0.25) +
+    scale_y_continuous(
+      name="AMV anomaly (K)",
+      breaks=c(-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3),
+      limits=c(-0.3, 0.3)
+    ) +
+    scale_x_continuous(
+      name = "",
+      breaks = seq(1960, 2000, 10),
+      limits = c(1960, 2005)
+    ) +
+    scale_color_discrete(
+      name = "",
+      labels = c("Observed", "Modelled"),
+      type = cbbPalette[2:1]
+    ) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          strip.text = element_text(size = strip_label_size),
+          legend.title = element_blank(),
+          legend.position = "bottom",
+          legend.text = element_text(size = legend_label_size),
+          axis.title.y = element_text(size = axis_title_size),
+          axis.text.y = element_text(size = axis_label_size_small),
+          axis.text.x = element_text(size = axis_label_size_small))
+
+  p4 =
+    p4 +
+    annotate(
+      geom = "text",
+      x = 1960, y = 0.3,
+      label = make_annotation(acc, rpc),
+      hjust=0,
+      vjust=1,
+      size = axis_label_size / ggplot2::.pt
+    ) +
+    annotate(
+      geom = "text",
+      x = 1960, y = -0.3,
+      label = "NAO-matched",
+      hjust=0,
+      vjust=0,
+      size = axis_label_size / ggplot2::.pt
+    )
+  p4
+}
+
+myplotfun_precip_raw <- function(full_fcst, ensemble_fcst) {
+  acc = compute_acc(full_fcst, "european_precip", "obs", "ens_mean_lag")
+  pred_sd = compute_predictable_sd(full_fcst, "european_precip", "ens_mean_lag")
+  tot_sd = compute_total_sd(ensemble_fcst, "european_precip")
+  rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+  plotdata =
+    full_fcst %>%
+    filter(variable %in% "european_precip") %>%
+    pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+    filter(statistic %in% c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag")) %>%
+    mutate(statistic = factor(
+             statistic,
+             levels = c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag"),
+             labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
+    mutate(value = ifelse(init_year < 1964, NA, value))
+
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  p5 = ggplot() +
+    geom_ribbon(
+      data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
+      aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
+    ) +
+    geom_line(
+      data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+      aes(x = init_year, y = value, color = statistic)
+    ) +
+    geom_hline(yintercept=0, size=0.25) +
+    scale_y_continuous(
+      name=expression(atop("Northern European", paste("precipitation anomaly " (mm~day^{-1})))),
+      breaks=c(-0.5, -0.25, 0.0, 0.25, 0.5),
+      limits=c(-0.5, 0.5)
+    ) +
+    scale_x_continuous(
+      name = "",
+      breaks = seq(1960, 2000, 10),
+      limits = c(1960, 2005)
+    ) +
+    scale_color_discrete(
+      name = "",
+      labels = c("Observed", "Modelled"),
+      type = cbbPalette[2:1]
+    ) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          strip.text = element_text(size = strip_label_size),
+          legend.title = element_blank(),
+          legend.position = "bottom",
+          legend.text = element_text(size = legend_label_size),
+          axis.title.y = element_text(size = axis_title_size),
+          axis.text.y = element_text(size = axis_label_size_small),
+          axis.text.x = element_text(size = axis_label_size_small))
+
+  p5 =
+    p5 +
+    annotate(
+      geom = "text",
+      x = 1960, y = 0.5,
+      label = make_annotation(acc, rpc),
+      hjust=0,
+      vjust=1,
+      size = axis_label_size / ggplot2::.pt
+    ) +
+    annotate(
+      geom = "text",
+      x = 1960, y = -0.5,
+      label = "Raw lagged ensemble",
+      hjust=0,
+      vjust=0,
+      size = axis_label_size / ggplot2::.pt
+    )
+  p5
+}
+
+myplotfun_precip_matched <- function(nao_matched_fcst, ensemble_fcst) {
+  acc = compute_acc(nao_matched_fcst, "european_precip", "obs", "ens_mean")
+  pred_sd = compute_predictable_sd(nao_matched_fcst, "european_precip", "ens_mean")
+  tot_sd = compute_total_sd(ensemble_fcst, "european_precip")
+  rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+  plotdata =
+    nao_matched_fcst %>%
+    filter(variable %in% "european_precip") %>%
+    pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+    filter(statistic %in% c("obs", "ens_mean_var_adj")) %>%
+    mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
+    mutate(value = ifelse(init_year < 1964, NA, value))
+
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  p6 = ggplot() +
+    geom_line(
+      data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+      aes(x = init_year, y = value, color = statistic)
+    ) +
+    geom_hline(yintercept=0, size=0.25) +
+    scale_y_continuous(
+      name=expression(atop("Northern European", paste("precipitation anomaly " (mm~day^{-1})))),
+      breaks=c(-0.5, -0.25, 0.0, 0.25, 0.5),
+      limits=c(-0.5, 0.5)
+    ) +
+    scale_x_continuous(
+      name = "",
+      breaks = seq(1960, 2000, 10),
+      limits = c(1960, 2005)
+    ) +
+    scale_color_discrete(
+      name = "",
+      labels = c("Observed", "Modelled"),
+      type = cbbPalette[2:1]
+    ) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          strip.text = element_text(size = strip_label_size),
+          legend.title = element_blank(),
+          legend.position = "bottom",
+          legend.text = element_text(size = legend_label_size),
+          axis.title.y = element_text(size = axis_title_size),
+          axis.text.y = element_text(size = axis_label_size_small),
+          axis.text.x = element_text(size = axis_label_size_small))
+
+  p6 =
+    p6 +
+    annotate(
+      geom = "text",
+      x = 1960, y = 0.5,
+      label = make_annotation(acc, rpc),
+      hjust=0,
+      vjust=1,
+      size = axis_label_size / ggplot2::.pt
+    ) +
+    annotate(
+      geom = "text",
+      x = 1960, y = -0.5,
+      label = "NAO-matched",
+      hjust=0,
+      vjust=0,
+      size = axis_label_size / ggplot2::.pt
+    )
+  p6
+}
+
+myplotfun_temp_raw <- function(full_fcst, ensemble_fcst) {
+  acc = compute_acc(full_fcst, "uk_temp", "obs", "ens_mean_lag")
+  pred_sd = compute_predictable_sd(full_fcst, "uk_temp", "ens_mean_lag")
+  tot_sd = compute_total_sd(ensemble_fcst, "uk_temp")
+  rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+  plotdata =
+    full_fcst %>%
+    filter(variable %in% "uk_temp") %>%
+    pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+    filter(statistic %in% c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag")) %>%
+    mutate(statistic = factor(
+             statistic,
+             levels = c("obs", "ens_mean_lag", "ens_q95_lag", "ens_q05_lag"),
+             labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
+    mutate(value = ifelse(init_year < 1964, NA, value))
+
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  p7 = ggplot() +
+    geom_ribbon(
+      data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
+      aes(x = init_year, ymin = ens_q05, ymax = ens_q95), fill = "red", alpha=0.15
+    ) +
+    geom_line(
+      data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+      aes(x = init_year, y = value, color = statistic)
+    ) +
+    geom_hline(yintercept=0, size=0.25) +
+    scale_y_continuous(
+      name=expression(atop("Northern European", "temperature anomaly (K)")),
+      breaks=c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2),
+      limits=c(-1.2, 1.2)
+    ) +
+    scale_x_continuous(
+      name = "",
+      breaks = seq(1960, 2000, 10),
+      limits = c(1960, 2005)
+    ) +
+    scale_color_discrete(
+      name = "",
+      labels = c("Observed", "Modelled"),
+      type = cbbPalette[2:1]
+    ) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          strip.text = element_text(size = strip_label_size),
+          legend.title = element_blank(),
+          legend.position = "bottom",
+          legend.text = element_text(size = legend_label_size),
+          axis.title.y = element_text(size = axis_title_size),
+          axis.text.y = element_text(size = axis_label_size_small),
+          axis.text.x = element_text(size = axis_label_size_small))
+
+  p7 =
+    p7 +
+    annotate(
+      geom = "text",
+      x = 1960, y = 1.2,
+      label = make_annotation(acc, rpc),
+      hjust=0,
+      vjust=1,
+      size = axis_label_size / ggplot2::.pt
+    ) +
+    annotate(
+      geom = "text",
+      x = 1960, y = -1.2,
+      label = "Raw lagged ensemble",
+      hjust=0,
+      vjust=0,
+      size = axis_label_size / ggplot2::.pt
+    )
+  p7
+}
+
+myplotfun_temp_matched <- function(nao_matched_fcst, ensemble_fcst) {
+  acc = compute_acc(nao_matched_fcst, "uk_temp", "obs", "ens_mean")
+  pred_sd = compute_predictable_sd(nao_matched_fcst, "uk_temp", "ens_mean")
+  tot_sd = compute_total_sd(ensemble_fcst, "uk_temp")
+  rpc = compute_rpc(acc$estimate, pred_sd, tot_sd)
+
+  plotdata =
+    nao_matched_fcst %>%
+    filter(variable %in% "uk_temp") %>%
+    pivot_longer(c(-init_year, -variable), names_to = "statistic", values_to = "value") %>%
+    filter(statistic %in% c("obs", "ens_mean_var_adj")) %>%
+    mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
+    mutate(value = ifelse(init_year < 1964, NA, value))
+
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  p8 = ggplot() +
+    geom_line(
+      data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
+      aes(x = init_year, y = value, color = statistic)
+    ) +
+    geom_hline(yintercept=0, size=0.25) +
+    scale_y_continuous(
+      name=expression(atop("Northern European", "temperature anomaly (K)")),
+      breaks=c(-1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2),
+      limits=c(-1.2, 1.2)
+    ) +
+    scale_x_continuous(
+      name = "",
+      breaks = seq(1960, 2000, 10),
+      limits = c(1960, 2005)
+    ) +
+    scale_color_discrete(
+      name = "",
+      labels = c("Observed", "Modelled"),
+      type = cbbPalette[2:1]
+    ) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          strip.text = element_text(size = strip_label_size),
+          legend.title = element_blank(),
+          legend.position = "bottom",
+          legend.text = element_text(size = legend_label_size),
+          axis.title.y = element_text(size = axis_title_size),
+          axis.text.y = element_text(size = axis_label_size_small),
+          axis.text.x = element_text(size = axis_label_size_small))
+
+  p8 =
+    p8 +
+    annotate(
+      geom = "text",
+      x = 1960, y = 1.2,
+      label = make_annotation(acc, rpc),
+      hjust=0,
+      vjust=1,
+      size = axis_label_size / ggplot2::.pt
+    ) +
+    annotate(
+      geom = "text",
+      x = 1960, y = -1.2,
+      label = "NAO-matched",
+      hjust=0,
+      vjust=0,
+      size = axis_label_size / ggplot2::.pt
+    )
+  p8
+}
+
+myplotfun_residuals <- function(x, var) {
+  rdbu_pal = RColorBrewer::brewer.pal(9, "RdBu")
+  p =
+    ggplot() +
+    geom_sf(
+      data = europe_boundary,
+      color=NA,
+      fill="lightgrey"
+    ) +
+    geom_sf(
+      data = uk_boundary,
+      lwd = 0.25
+    ) +
+    geom_sf(
+      data = x,
+      aes(fill = !!sym(var)),
+      ## size = 1.5,
+      shape = 21,
+      size = 2,
+      lwd = 0.1,
+      alpha = 0.8
+    ) +
+    ## facet_wrap(. ~ period, ncol = 1) +
+    coord_sf(
+      xlim = c(-8, 2),
+      ylim = c(50, 59),
+      default_crs = st_crs(4326)
+    ) +
+    ## scale_fill_distiller(type = "div", palette = "RdBu") + #colours = rdbu_pal) +
+    ## scale_shape_manual(values = c(21, 24, 22)) +
+    ## scale_fill_stepsn(
+    ##   colours = rdbu_pal,
+    ##   ## breaks = seq(-0.8, 0.8, 0.2),
+    ##   ## values = scales::rescale(c(-0.8, 0, 0.8)),
+    ##   ## limits = c(-0.3, 0.9)
+    ##   ## breaks = seq(-0.2, 0.8, 0.2),
+    ##   ## values = scales::rescale(c(-0.2, 0, 0.8)),
+    ##   ## limits = c(-0.1, 0.9)
+    ## ) +
+    theme_bw() +
+    theme(
+      strip.background = element_blank(),
+      legend.position = "bottom",
+      legend.box = "vertical",
+      legend.justification = "left",
+      legend.box.just = "left",
+      legend.title = element_text(size = legend_title_size),
+      legend.text = element_text(size = legend_label_size),
+      strip.text = element_blank(),
+      panel.grid.major = element_line(size = 0.25),
+      axis.text = element_text(size = axis_label_size_small),
+    ) ##+
+    ## guides(
+    ##   shape = guide_legend(
+    ##     title = "Model",
+    ##     title.position = "top",
+    ##     order = 1
+    ##   ),
+    ##   fill = guide_colorbar(
+    ##     title=legend_title, #"MSSS",
+    ##     title.position="top",
+    ##     frame.colour = "black",
+    ##     ticks.colour = "black",
+    ##     frame.linewidth = 0.25,
+    ##     ticks.linewidth = 0.25,
+    ##     barwidth = 12,
+    ##     barheight = 0.75,
+    ##     order = 2
+    ##   )
+    ## )
+  p
 }
