@@ -955,8 +955,8 @@ myplotfun6 <- function(x) {
 myplotfun_scatter <- function(x) {
   cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
   p <- ggscatter(
-    x, x="R2", y="skill_diff", color="model", add = "reg.line",
-    conf.int = FALSE, shape = 21, palette = cbbPalette
+    x, x="R2", y="skill_diff", fill="model", add = "reg.line", add.params = list(color="model"),
+    conf.int = FALSE, shape = 21, color = "black", palette = cbbPalette
   )
 
   p <- p +
@@ -990,6 +990,7 @@ myplotfun_scatter <- function(x) {
     ) +
     geom_hline(yintercept = 0, size = 0.25) +
     scale_color_manual(name = "Model", values = cbbPalette) +
+    scale_fill_manual(name = "Model", values = cbbPalette) +
     theme_bw() +
     theme(
       legend.position = "bottom",

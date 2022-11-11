@@ -184,6 +184,7 @@ strip_label_size = 8
 obs_skill_subset <-
   obs_skill_scores %>%
   filter(model %in% c("P", "PT")) %>%
+  mutate(model = droplevels(model)) %>%
   group_by(ID) %>%
   filter(crps_ens_fcst==min(crps_ens_fcst))
 
@@ -196,6 +197,7 @@ obs_skill_subset %>% filter(crpss > 0) %>% `$`(crpss) %>% median()
 full_ens_ids <-
   skill_scores %>%
   filter(model %in% c("P", "PT") & subset %in% "full") %>%
+  mutate(model = droplevels(model)) %>%
   group_by(ID) %>%
   filter(crps_ens_fcst==min(crps_ens_fcst)) %>%
   filter(crpss>0) %>% `$`(ID)
@@ -203,6 +205,7 @@ full_ens_ids <-
 nao_matched_ids <-
   skill_scores %>%
   filter(model %in% c("P", "PT") & subset %in% "best_n") %>%
+  mutate(model = droplevels(model)) %>%
   group_by(ID) %>%
   filter(crps_ens_fcst==min(crps_ens_fcst)) %>%
   filter(crpss>0) %>% `$`(ID)
@@ -548,14 +551,16 @@ stat <-
 
 skill_scores_subset =
   skill_scores %>%
-  filter(model %in% c("P", "PT", "NAOPT")) %>%
+  filter(model %in% c("P", "PT")) %>% #, "NAOPT")) %>%
+  mutate(model = droplevels(model)) %>%
   filter(subset %in% "full", period %in% aggregation_period) %>%
   mutate(period = factor(period, levels = aggregation_period, labels = aggregation_period_label)) %>%
   mutate(skill = !!sym(skill_measure))
 
 obs_skill_scores_subset <-
   obs_skill_scores %>%
-  filter(model %in% c("P", "PT", "NAOPT")) %>%
+  filter(model %in% c("P", "PT")) %>% #, "NAOPT")) %>%
+  mutate(model = droplevels(model)) %>%
   filter(period %in% obs_aggregation_period) %>%
   mutate(period = factor(period, levels = obs_aggregation_period, labels = obs_aggregation_period_label)) %>%
   mutate(skill = !!sym(skill_measure))
@@ -568,11 +573,11 @@ example_discharge_data <-
 pp1 <- myplotfun_schematic(example_discharge_data)
 
 ## Raw ensemble
-skill1 <- myfun(skill_scores_subset %>% filter(!model %in% "NAOPT"))
+skill1 <- myfun(skill_scores_subset) # %>% filter(!model %in% "NAOPT"))
 p1 <- myplotfun1(na.omit(skill1), legend_title = toupper(skill_measure))
 
 ## Observed data (i.e. perfect predictors)
-skill1 <- myfun(obs_skill_scores_subset %>% filter(!model %in% "NAOPT"))
+skill1 <- myfun(obs_skill_scores_subset) # %>% filter(!model %in% "NAOPT"))
 p2 <- myplotfun1(na.omit(skill1), legend_title = toupper(skill_measure))
 p2 <- p2 + theme(axis.ticks.y = element_blank(), axis.text.y = element_blank())
 
@@ -723,6 +728,7 @@ all_skill_measures <- c("crps_fcst", "crps_ens_fcst", "crps_climat", "crpss", "a
 skill_scores_subset =
   skill_scores %>%
   filter(model %in% c("P", "PT")) %>% #, "NAOPT")) %>%
+  mutate(model = droplevels(model)) %>%
   filter(subset %in% c("best_n", "full")) %>%
   filter(period %in% aggregation_period) %>%
   mutate(period = factor(period, levels = aggregation_period, labels = aggregation_period_label)) %>%
@@ -732,7 +738,7 @@ skill_scores_subset =
   mutate(skill_diff = best_n - full)
 
 p4 <- myplotfun444(
-  skill_scores_subset %>% filter(model %in% c("P", "PT") & period %in% aggregation_period_label),
+  skill_scores_subset %>% filter(period %in% aggregation_period_label),
   legend_title = toupper(skill_measure)
 )
 
@@ -762,6 +768,7 @@ p2 = p2 + theme(legend.margin = margin(0, 0, 0, 0, unit = "cm"))
 skill_scores_subset =
   skill_scores %>%
   filter(model %in% c("P", "PT")) %>%
+  mutate(model = droplevels(model)) %>%
   filter(subset %in% c("best_n", "full"), period %in% aggregation_period) %>%
   mutate(
     subset = factor(
@@ -1019,6 +1026,7 @@ skill_scores_subset <-
 skill =
   skill_scores_subset %>%
   filter(model %in% c("P", "PT")) %>%
+  mutate(model = droplevels(model)) %>%
   group_by(ID) %>%
   filter(crps_ens_fcst == min(crps_ens_fcst)) %>%
   arrange(desc(best_n))
@@ -1047,35 +1055,35 @@ p1 <- predictions %>%
   filter(ID %in% ids_best[1] & model %in% models_best[1]) %>%
   myplotfun6()
 p1 <- p1 +
-  labs(title = paste0("ID=", ids_best[1])) +
+  labs(title = paste0("ID=", ids_best[1])) + #, " (", models_best[1], ")")) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p2 <- predictions %>%
   filter(ID %in% ids_best[2] & model %in% models_best[2]) %>%
   myplotfun6()
 p2 <- p2 +
-  labs(title = paste0("ID=", ids_best[2])) +
+  labs(title = paste0("ID=", ids_best[2])) + #, " (", models_best[2], ")")) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p3 <- predictions %>%
   filter(ID %in% ids_best[3] & model %in% models_best[3]) %>%
   myplotfun6()
 p3 <- p3 +
-  labs(title = paste0("ID=", ids_best[3])) +
+  labs(title = paste0("ID=", ids_best[3])) + #, " (", models_best[3], ")")) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p4 <- predictions %>%
   filter(ID %in% ids_best[4] & model %in% models_best[4]) %>%
   myplotfun6()
 p4 <- p4 +
-  labs(title = paste0("ID=", ids_best[4])) +
+  labs(title = paste0("ID=", ids_best[4])) + #, " (", models_best[4], ")")) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p5 <- predictions %>%
   filter(ID %in% ids_best[5] & model %in% models_best[5]) %>%
   myplotfun6()
 p5 <- p5 +
-  labs(title = paste0("ID=", ids_best[5])) +
+  labs(title = paste0("ID=", ids_best[5])) + #, " (", models_best[5], ")")) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 format_p_value <- function(p_value) {
@@ -1125,6 +1133,18 @@ annotate_plot <- function(p, id, mod) {
       hjust=0,
       vjust=1,
       size = annotation_size / ggplot2::.pt
+    ) +
+  ## p <- p +
+  ##   ylim(range) +
+    annotate(
+      geom = "text",
+      x = 2005,
+      y = yrange[1] + diff(yrange) * annotation_rel_pos,
+      label = mod,
+      hjust = 1,
+      vjust = 1,
+      size = annotation_size / ggplot2::.pt,
+      fontface = "bold"
     )
   p
 }
@@ -1319,9 +1339,27 @@ skill_scores_subset <-
 
 x <- skill_scores_subset %>%
   left_join(r2) %>%
-  filter(model %in% c("P", "PT"))
+  filter(model %in% c("P", "PT")) %>%
+  mutate(model = droplevels(model))
 
 p <- myplotfun_scatter(x)
+## p <- p +
+##   guides(
+##     color = guide_legend(
+##       ## title = "Model",
+##       ## title.position = "top",
+##       ## title.hjust = 0,
+##       order = 1,
+##       ## direction = "horizontal"
+##     ),
+##     fill = guide_legend(
+##       ## title = "Model",
+##       ## title.position = "top",
+##       ## title.hjust = 0,
+##       order = 1,
+##       ## direction = "horizontal"
+##     )
+##   )
 ggsave(file.path(output_dir, "fig4.png"), plot = p, width = 5, height = 5, units = "in")
 
 ## ## ####################################################### ##
@@ -1376,7 +1414,8 @@ skill_scores_subset <-
   skill_scores %>%
   dplyr::select(-aic) %>%
   filter(model %in% c("P", "PT") & subset %in% "best_n") %>%
-  myfun()
+  mutate(model = droplevels(model)) %>%
+  myfun() # Selects the best performing model
 
 skill_scores_subset <-
   skill_scores_subset %>%
@@ -1871,7 +1910,10 @@ predictions = open_dataset(
   filter(model %in% c("P", "P_T", "NAO_P_T"))
 predictions$model = factor(predictions$model, levels = model_levels, labels = model_labels)
 predictions <- predictions %>% mutate(obs = Q_95_obs, exp = Q_95_exp)
-predictions <- predictions %>% filter(model %in% c("P", "PT"))
+predictions <-
+  predictions %>%
+  filter(model %in% c("P", "PT")) %>%
+  mutate(model = droplevels(model))
 
 p1 <- predictions %>%
   filter(ID %in% ids_best[1] & subset %in% "full") %>%
@@ -2883,6 +2925,7 @@ dataset_dir = config$modelling[["hindcast"]]$input_dataset
 skill_scores_subset <-
   skill_scores %>%
   filter(model %in% c("P", "PT") & subset %in% c("full", "best_n")) %>%
+  mutate(model = droplevels(model)) %>%
   group_by(ID, subset, period) %>%
   filter(crps_ens_fcst == min(crps_ens_fcst)) %>%
   dplyr::select(-any_of(all_skill_measures)) %>% ungroup()
