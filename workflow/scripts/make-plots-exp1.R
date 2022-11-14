@@ -2206,19 +2206,19 @@ p4 <- p4 + labs(title = "d") + theme(plot.title = element_text(size = tag_label_
 
 ## Plot 5 [analog of Fig 2e from Smith et al. 2020]
 p5 <- myplotfun_precip_raw(full_fcst, ensemble_fcst)
-p5 <- p5 + labs(title = "e") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p5 <- p5 + labs(title = "g") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
 
 ## Plot 6 [analog of Fig 2f from Smith et al. 2020]
 p6 <- myplotfun_precip_matched(nao_matched_fcst, ensemble_fcst)
-p6 <- p6 + labs(title = "f") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p6 <- p6 + labs(title = "h") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
 
 ## Plot 7
 p7 <- myplotfun_temp_raw(full_fcst, ensemble_fcst)
-p7 <- p7 + labs(title = "g") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p7 <- p7 + labs(title = "e") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
 
 ## Plot 8
 p8 <- myplotfun_temp_matched(nao_matched_fcst, ensemble_fcst)
-p8 <- p8 + labs(title = "h") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p8 <- p8 + labs(title = "f") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
 
 p1 = p1 + theme(axis.title.y = element_text(size = axis_title_size_small))
 p3 = p3 + theme(axis.title.y = element_text(size = axis_title_size_small))
