@@ -396,7 +396,6 @@ rolling_fun <- function(yrs, data, cols, funs, start=2, end=9) {
   ## Also collect the start year of the time window
   period_start = rep(NA, length(yrs))
   for (i in 1:(length(yrs)-end+1)) {
-  ## for (i in 1:(length(yrs)-end)) {
     start_index = i + start - 1
     end_index = i + end - 1
     for (j in 1:length(cols)) {
@@ -407,10 +406,8 @@ rolling_fun <- function(yrs, data, cols, funs, start=2, end=9) {
       } else {
         fun = funs[[nm]]
       }
-      ## fun = ifelse(is.function(funs), funs, funs[[nm]])
       out[[nm]][i] = fun(x[start_index:end_index], na.rm=TRUE)
     }
-    ## period_start[i] = yrs[start_index]
   }
   out = out %>% as.data.frame() %>% as_tibble()
   out
@@ -609,11 +606,11 @@ create_ensemble_forecast <- function(ensemble_fcst_error,
 make_prediction <- function(newdata,
                             data,
                             ...,
-                            ## quantiles = c(0.5, 0.25, 0.75, 0.05, 0.95),
-                            quantiles = seq(0.01, 0.99, 0.01),
+                            quantiles = c(0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.98, 0.99),
                             model_family,
                             obs,
-                            ref_prediction) {
+                            compute_skill = FALSE,
+                            ref_prediction = NA) {
   ## Create centiles for a list of models
   ##
   ## Args:
@@ -640,11 +637,16 @@ make_prediction <- function(newdata,
   for (i in 1:length(model_nms)) {
     nm = model_nms[i]
     model = models[[nm]]
-    tbl =
-      rep(NA, length(quantile_names) + 1) %>%
-      setNames(c("model", quantile_names)) %>%
-      as.list() %>% as_tibble()
+    tbl <- matrix(NA, nrow=nrow(newdata), ncol=length(quantile_names) + 3) %>%
+      as_tibble() %>%
+      setNames(c("date", "model", "observations", quantile_names))
+    ## tbl =
+    ##   rep(NA, length(quantile_names) + 1) %>%
+    ##   setNames(c("model", quantile_names)) %>%
+    ##   as.list() %>% as_tibble()
+    tbl[["date"]] = NA
     tbl[["model"]] = nm
+    tbl[["observations"]] = obs
     if (!is.null(model)) {
       mu = predict(
         model,
@@ -660,43 +662,39 @@ make_prediction <- function(newdata,
         type = "response",
         data = data
       )
-      ## See http://www.gamlss.com/wp-content/uploads/2013/01/gamlss-manual.pdf [A.5.1]
-      ## We need scale/shape to implement scoringRules, but the GAMLSS implementation
-      ## of the Gamma distn is a reparameterization which sets sigma**2=1/shape and
-      ## mu=shape*scale [TODO - check this with Louise]
       shape = 1 / (sigma ** 2)
       scale = mu / shape
 
-      ## Add model parameters to tbl
       tbl[["mu"]] = mu
       tbl[["sigma"]] = sigma
       tbl[["shape"]] = shape
       tbl[["scale"]] = scale
 
-      ## Compute CRPS & CRPSS
-      tbl[["crps_fcst"]] = crps_gamma(obs, shape=shape, scale=scale)
-
-      ## Also try computing CRPS with ensemble approach
-      ens_fcst = qGA(seq(0.01, 0.99, by = 0.01), mu, sigma)
-      ens_fcst_mat = t(matrix(ens_fcst))
-      if (nrow(ens_fcst_mat) != length(obs)) {
-        stop()
+      if (compute_skill) {
+        if (is.na(ref_prediction)) {
+          stop("`ref_prediction` cannot be be NA if `compute_skill` is TRUE")
+        }
+        ## See http://www.gamlss.com/wp-content/uploads/2013/01/gamlss-manual.pdf [A.5.1]
+        ## We need scale/shape to implement scoringRules, but the GAMLSS implementation
+        ## of the Gamma distn is a reparameterization which sets sigma**2=1/shape and
+        ## mu=shape*scale [TODO - check this with Louise]
+        ## Compute CRPS & CRPSS
+        tbl[["crps_fcst"]] = crps_gamma(obs, shape=shape, scale=scale)
+        ## Also try computing CRPS with ensemble approach
+        ens_fcst = qGA(seq(0.01, 0.99, by = 0.01), mu, sigma)
+        ens_fcst_mat = t(matrix(ens_fcst))
+        if (nrow(ens_fcst_mat) != length(obs)) {
+          stop()
+        }
+        tbl[["crps_ens_fcst"]] = EnsCrps(ens_fcst_mat, obs)
+        ## Ensemble climatology forecast
+        ref_prediction_mat = t(matrix(ref_prediction))
+        if (nrow(ref_prediction_mat) != length(obs)) {
+          stop()
+        }
+        tbl[["crps_climat"]] = EnsCrps(ref_prediction_mat, obs)
+        tbl[["aic"]] = AIC(models[[nm]])
       }
-      tbl[["crps_ens_fcst"]] = EnsCrps(ens_fcst_mat, obs)
-
-      ## Ensemble climatology forecast
-      ref_prediction_mat = t(matrix(ref_prediction))
-      if (nrow(ref_prediction_mat) != length(obs)) {
-        stop()
-      }
-      tbl[["crps_climat"]] = EnsCrps(ref_prediction_mat, obs)
-
-      ## Get AIC
-      tbl[["aic"]] = AIC(models[[nm]])
-
-      ## ## ## Check residuals
-      ## ## checks <- check_residuals(models[[nm]])
-
       ## Predict quantiles using mu and sigma
       for (j in 1:length(quantile_names)) {
         q = quantiles[j]
@@ -709,18 +707,20 @@ make_prediction <- function(newdata,
       tbl[["sigma"]] = NA
       tbl[["shape"]] = NA
       tbl[["scale"]] = NA
-      tbl[["crps_fcst"]] = NA
-      tbl[["crps_ens_fcst"]] = NA
-      tbl[["crps_climat"]] = NA
-      tbl[["aic"]] = NA
+      if (compute_skill) {
+        tbl[["crps_fcst"]] = NA
+        tbl[["crps_ens_fcst"]] = NA
+        tbl[["crps_climat"]] = NA
+        tbl[["aic"]] = NA
+      }
       for (qnm in quantile_names) {
         tbl[[qnm]] = NA
       }
     }
     ## Merge with ID columns from new data
     tbl = cbind(
-      tbl,
-      newdata %>% dplyr::select(any_of(id_cols))
+      newdata %>% dplyr::select(any_of(id_cols)),
+      tbl
     )
     computed_quantiles[[i]] = tbl
   }
@@ -735,6 +735,10 @@ fit_models_cv <- function(x,
                           config_section,
                           lead_time,
                           ...) {
+
+  catchment_prediction_list = list()
+  catchment_simulation_list = list()
+
   n_fold <- nrow(x)
   for (p in 1:n_fold) {
     ## The buffer is needed to prevent contamination between the training set and test set
@@ -746,9 +750,7 @@ fit_models_cv <- function(x,
     train_idx = idx[!idx %in% remove_idx]
     train_data = x[train_idx,]
     test_data = x[test_idx,]
-
-    ## TEST
-    year <- test_data$year
+    year <- test_data$year # Should be length 1
 
     ## N.B. because we use a function to fit models the data.frame
     ## used in the original fit is not stored in the model call
@@ -761,6 +763,11 @@ fit_models_cv <- function(x,
       config_section$model_family,
       train_data
     )
+
+    ## ############### ##
+    ## Make prediction ##
+    ## ############### ##
+
     ## Assume climatology is the mean value of Q
     ens_climatology_prediction <- train_data[["Q"]]
     climatology_prediction <- ens_climatology_prediction %>% mean(na.rm = TRUE)
@@ -771,30 +778,55 @@ fit_models_cv <- function(x,
         models,
         list(model_family = config_section$model_family,
              obs = obs,
+             compute_skill = TRUE,
              ref_prediction = ens_climatology_prediction))
     )
 
     ## Create output data frame
+    ## N.B. Q50 is the median of the probabilistic forecast, not the streamflow quantile
     obs_column_name = paste0(config_section$predictand, '_obs')
     exp_column_name = paste0(config_section$predictand, '_exp')
     climat_column_name = paste0(config_section$predictand, '_climat')
-    ## N.B. Q50 is the median of the probabilistic forecast, not the streamflow quantile
     prediction =
       prediction %>%
       mutate(
-        !!obs_column_name := obs,
+        !!obs_column_name := observations,
         !!exp_column_name := Q50,
         !!climat_column_name := climatology_prediction
-      ) %>%
-      mutate(
-        date = NA,
-        year = year
-        ## model = paste0("GAMLSS_", model)
       ) #%>%
-      ## dplyr::select(all_of(c(obs_column_name, exp_column_name)), year, model)
+      #mutate(date = NA, year = year)
 
+    ## Add data to list
     pred_idx = length(catchment_prediction_list) + 1
     catchment_prediction_list[[pred_idx]] = prediction
+
+    ## ## ############### ##
+    ## ## Make simulation ##
+    ## ## ############### ##
+
+    ## obs = train_data[["Q"]]
+    ## simulation = do.call(
+    ##   "make_prediction",
+    ##   c(list(newdata = train_data, data = train_data),
+    ##     models,
+    ##     list(model_family = config_section$model_family))
+
+    ## obs_column_name = paste0(config_section$predictand, '_obs')
+    ## exp_column_name = paste0(config_section$predictand, '_exp')
+    ## climat_column_name = paste0(config_section$predictand, '_climat')
+    ## simulation =
+    ##   simulation %>%
+    ##   mutate(
+    ##     !!obs_column_name := obs,
+    ##     !!exp_column_name := Q50,
+    ##     !!climat_column_name := climatology_prediction
+    ##   ) %>%
+    ##   mutate(date = NA, year = year) %>%
+    ## mutate(test_year = test_year)
+
+    ## sim_idx = length(simulation_prediction_list) + 1
+    ## catchment_simulation_list[[sim_idx]] = simulation
+
   }
   if (length(catchment_prediction_list) == 0) {
     catchment_prediction <- NULL
@@ -812,6 +844,8 @@ fit_models_forward_chain <- function(x,
                                      lead_time,
                                      ...) {
   catchment_prediction_list = list()
+  catchment_simulation_list = list()
+
   buffer <- length(lead_time)
   max_training_period_end = test_period_end - buffer #window
   while (training_period_end <= max_training_period_end) {
@@ -838,40 +872,112 @@ fit_models_forward_chain <- function(x,
       config_section$model_family,
       train_data
     )
+    ## ## Assume climatology is the mean value of Q
+    ## ens_climatology_prediction <- train_data[["Q"]]
+    ## climatology_prediction <- ens_climatology_prediction %>% mean(na.rm = TRUE)
+    ## obs = test_data[["Q"]]
+    ## prediction = do.call(
+    ##   "make_prediction",
+    ##   c(list(newdata = test_data, data = train_data),
+    ##     models,
+    ##     list(model_family = config_section$model_family,
+    ##          obs = obs,
+    ##          ref_prediction = ens_climatology_prediction))
+    ## )
+    ## ## Create output data frame
+    ## obs_column_name = paste0(config_section$predictand, '_obs')
+    ## exp_column_name = paste0(config_section$predictand, '_exp')
+    ## climat_column_name = paste0(config_section$predictand, '_climat')
+    ## ## N.B. Q50 is the median of the probabilistic forecast, not the streamflow quantile
+    ## prediction =
+    ##   prediction %>%
+    ##   mutate(
+    ##     !!obs_column_name := obs,
+    ##     !!exp_column_name := Q50,
+    ##     !!climat_column_name := climatology_prediction
+    ##   ) %>%
+    ##   mutate(
+    ##     date = NA,
+    ##     year = year
+    ##     ## model = paste0("GAMLSS_", model)
+    ##   ) #%>%
+    ##   ## dplyr::select(all_of(c(obs_column_name, exp_column_name)), year, model)
+
+    ## pred_idx = length(catchment_prediction_list) + 1
+    ## catchment_prediction_list[[pred_idx]] = prediction
+
+    ## ############### ##
+    ## Make prediction ##
+    ## ############### ##
+
+    ## Assume climatology is the mean value of Q
+    ens_climatology_prediction <- train_data[["Q"]]
+    climatology_prediction <- ens_climatology_prediction %>% mean(na.rm = TRUE)
+    obs = test_data[["Q"]]
     prediction = do.call(
       "make_prediction",
-      c(list(newdata = test_data, data = train_data), models, list(model_family=config_section$model_family))
+      c(list(newdata = test_data, data = train_data),
+        models,
+        list(model_family = config_section$model_family,
+             obs = obs,
+             compute_skill = TRUE,
+             ref_prediction = ens_climatology_prediction))
     )
+
     ## Create output data frame
-    ## Create output data frame
-    obs = test_data[["Q"]]
+    ## N.B. Q50 is the median of the probabilistic forecast, not the streamflow quantile
     obs_column_name = paste0(config_section$predictand, '_obs')
     exp_column_name = paste0(config_section$predictand, '_exp')
-    ## N.B. Q50 is the median of the probabilistic forecast, not the streamflow quantile
+    climat_column_name = paste0(config_section$predictand, '_climat')
     prediction =
       prediction %>%
       mutate(
-        !!obs_column_name := obs,
-        !!exp_column_name := Q50
-      ) %>%
-      mutate(
-        date = NA,
-        model = paste0("GAMLSS_", model)
+        !!obs_column_name := observations,
+        !!exp_column_name := Q50,
+        !!climat_column_name := climatology_prediction
       ) #%>%
-      ## dplyr::select(all_of(c(obs_column_name, exp_column_name)), year, model)
+      #mutate(date = NA, year = year)
+
+    ## Add data to list
     pred_idx = length(catchment_prediction_list) + 1
     catchment_prediction_list[[pred_idx]] = prediction
-    ## END SECTION
+
+    ## ############### ##
+    ## Make simulation ##
+    ## ############### ##
+
+    obs = train_data[["Q"]]
+    simulation = do.call(
+      "make_prediction",
+      c(list(newdata = train_data, data = train_data),
+        models,
+        list(model_family = config_section$model_family, obs = obs))
+    )
+
+    obs_column_name = paste0(config_section$predictand, '_obs')
+    exp_column_name = paste0(config_section$predictand, '_exp')
+    simulation =
+      simulation %>%
+      mutate(
+        !!obs_column_name := observations,
+        !!exp_column_name := Q50,
+      ) %>%
+      mutate(test_year = test_year)
+
+    sim_idx = length(catchment_simulation_list) + 1
+    catchment_simulation_list[[sim_idx]] = simulation
 
     ## Update training period end for next iteration
     training_period_end <- training_period_end + 1
   }
   if (length(catchment_prediction_list) == 0) {
     catchment_prediction <- NULL
+    catchment_simulation <- NULL
   } else {
     catchment_prediction = do.call("rbind", catchment_prediction_list)
+    catchment_simulation = do.call("rbind", catchment_simulation_list)
   }
-  catchment_prediction
+  list(prediction = catchment_prediction, simulation = catchment_simulation)
 }
 
 fit_models <- function(formulas,
@@ -945,24 +1051,104 @@ get_residual_checks <- function(model_list) {
   return(do.call("rbind", rows))
 }
 
-mean_square_error_skill_score <- function(obs, exp) {
-  ## MSSS
-  mse = mean((exp - obs) ^ 2)
-  mse_ref = mean((mean(obs) - obs) ^ 2)
-  msss = 1 - (mse / mse_ref)
-  ## ACC
-  acc = cor(obs, exp, method = "pearson")
-  ## correlation
-  r = cor(obs, exp, method = "pearson")
-  ## potential skill [= coefficient of determination]
-  ps = r ^ 2
-  ## slope reliability
-  srel = (r - (sd(exp) / sd(obs))) ^ 2
-  ## standardized mean error
-  sme = ((mean(exp) - mean(obs)) / sd(obs)) ^ 2
-  ## msss = ps - srel - sme
-  list(msss = msss, ps = ps, srel = srel, sme = sme, acc = acc)
+myfun <- function(x) {
+  ## Select the best model based on AIC value
+  x_best =
+    x %>%
+    group_by(ID, subset, period) %>%
+    filter(crps_ens_fcst==min(crps_ens_fcst))
+    ## filter(aic == min(aic))
+    ## filter(!!sym(skill_measure) == max(!!sym(skill_measure)))
+  skill =
+    gauge_stns %>%
+    left_join(x_best) %>%
+    mutate(skill = !!sym(skill_measure))
+  skill
 }
+
+load_model_predictions <- function(config, experiment, aggregation_period) {
+  predictions = open_dataset(
+    file.path(outputroot, "analysis", experiment, "gamlss", aggregation_period, "prediction")
+  ) %>%
+    collect() %>%
+    filter(subset %in% c("full", "best_n")) #%>%
+    ## mutate(subset = ifelse(subset == "best_n", "NAO-matched ensemble", "Full ensemble"))
+  model_levels <- unique(predictions$model)
+  model_labels <- model_levels %>% gsub("_", "", .)
+  predictions <-
+    predictions %>%
+    mutate(model = factor(model, levels = model_levels, labels = model_labels))
+  predictions
+}
+
+load_model_simulations <- function(config, experiment, aggregation_period) {
+  simulations <- open_dataset(
+    file.path(outputroot, "analysis", experiment, "gamlss", aggregation_period, "simulation")
+  ) %>%
+    collect() %>%
+    filter(subset %in% c("full", "best_n")) #%>%
+    ## mutate(subset = ifelse(subset == "best_n", "NAO-matched ensemble", "Full ensemble"))
+  model_levels <- unique(simulations$model)
+  model_labels <- model_levels %>% gsub("_", "", .)
+  simulations <-
+    simulations %>%
+    mutate(model = factor(model, levels = model_levels, labels = model_labels))
+  simulations
+}
+
+load_model_fit <- function(config, experiment, aggregation_period) {
+  fit <- open_dataset(
+    file.path(outputroot, "analysis", experiment, "gamlss", aggregation_period, "fit")
+  ) %>% collect()
+  fit <- fit %>% mutate(period = aggregation_period)
+  model_levels <- unique(fit$model)
+  model_labels <- model_levels %>% gsub("_", "", .)
+  fit <- fit %>% mutate(model = factor(model, levels = model_levels, labels = model_labels))
+  fit
+}
+
+load_skill_scores <- function(config, experiment, aggregation_period) {
+  ds <- open_dataset(
+    file.path(outputroot, "analysis", experiment, "gamlss", aggregation_period, "prediction")
+  ) %>% collect()
+  skill <- ds %>%
+    group_by(ID, model, subset) %>%
+    summarize(
+      crps_fcst = mean(crps_fcst),
+      crps_ens_fcst = mean(crps_ens_fcst),
+      crps_climat = mean(crps_climat),
+      aic=mean(aic)
+    ) %>%
+    ## mutate(crpss = 1 - (crps_fcst / crps_climat)) %>%
+    mutate(crpss = 1 - (crps_ens_fcst / crps_climat)) %>% # TODO check
+    mutate(period = aggregation_period)
+
+  model_levels <- unique(skill$model)
+  model_labels <- model_levels %>% gsub("_", "", .)
+  skill <- skill %>% mutate(model = factor(model, levels = model_levels, labels = model_labels))
+
+  return(skill)
+}
+
+
+## mean_square_error_skill_score <- function(obs, exp) {
+##   ## MSSS
+##   mse = mean((exp - obs) ^ 2)
+##   mse_ref = mean((mean(obs) - obs) ^ 2)
+##   msss = 1 - (mse / mse_ref)
+##   ## ACC
+##   acc = cor(obs, exp, method = "pearson")
+##   ## correlation
+##   r = cor(obs, exp, method = "pearson")
+##   ## potential skill [= coefficient of determination]
+##   ps = r ^ 2
+##   ## slope reliability
+##   srel = (r - (sd(exp) / sd(obs))) ^ 2
+##   ## standardized mean error
+##   sme = ((mean(exp) - mean(obs)) / sd(obs)) ^ 2
+##   ## msss = ps - srel - sme
+##   list(msss = msss, ps = ps, srel = srel, sme = sme, acc = acc)
+## }
 
 ## NOT USED:
 ##

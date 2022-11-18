@@ -1,6 +1,6 @@
 import os
 
-CONFIG = 'config/config.yml'
+CONFIG = 'config/config_0.yml'
 configfile: CONFIG
 
 RESULTS_DIRECTORY = config['output_data']

@@ -14,9 +14,9 @@ options(dplyr.summarise.inform = FALSE)
 ## ## FOR TESTING:
 ## config = read_yaml('config/config.yml')
 ## experiment = 'observed'
-## aggregation_period = 'yr2to5_lag'
-## method = 'cv'
-## outputroot = 'results/exp1'
+## aggregation_period = 'yr2to5'
+## method = 'forward'
+## outputroot = 'results/exp2'
 ## cwd = 'workflow/scripts/'
 
 if (sys.nframe() == 0L) {
@@ -42,6 +42,7 @@ if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
 }
 dir.create(file.path(output_dir, "prediction"))
+dir.create(file.path(output_dir, "simulation"))
 dir.create(file.path(output_dir, "fit"))
 
 metadata = catalogue()
@@ -75,13 +76,13 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
     stop("Dataset does not contain all specified subsets")
   }
 
-  ## Create output directories (one for prediction, one for skill)
-  subdirs = c("prediction", "skill")
-  for (m in 1:length(subdirs)) {
-    sd_output_dir = file.path(output_dir, subdirs[m])
-    unlink(sd_output_dir, recursive = TRUE)
-    dir.create(sd_output_dir, recursive = TRUE)
-  }
+  ## ## Create output directories (one for prediction, one for skill)
+  ## subdirs = c("prediction", "skill")
+  ## for (m in 1:length(subdirs)) {
+  ##   sd_output_dir = file.path(output_dir, subdirs[m])
+  ##   unlink(sd_output_dir, recursive = TRUE)
+  ##   dir.create(sd_output_dir, recursive = TRUE)
+  ## }
 
   ## Set predictand
   ds[["Q"]] = ds[[experiment_conf$predictand]]
@@ -167,7 +168,7 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
       ## Now run prediction, using either forward chain or cv
       if (method == "forward") {
         lead_time <- config$aggregation_period[[aggregation_period]]$lead_time
-        catchment_prediction <- fit_models_forward_chain(
+        out <- fit_models_forward_chain(
           xx,
           experiment_conf,
           training_period_start = 1961,
@@ -175,6 +176,8 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
           test_period_end = 2006,
           lead_time
         )
+        catchment_prediction <- out$prediction
+        catchment_simulation <- out$simulation
 
       } else if (method == "cv") {
         lead_time <- config$aggregation_period[[aggregation_period]]$lead_time
@@ -201,6 +204,19 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
         write_dataset(
           file.path(output_dir, "prediction"), format = "parquet"
         )
+
+      if (method == "forward") {
+        catchment_simulation %>%
+          mutate(
+            ID = stn_id,
+            date = NA,
+            subset = subset
+          ) %>%
+        group_by(ID, model, subset) %>% #predictand, subset) %>%
+        write_dataset(
+          file.path(output_dir, "simulation"), format = "parquet"
+        )
+      }
     }
     setTxtProgressBar(pb, k)
   }
@@ -209,13 +225,13 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
   warning(paste0("Aggregation period ", aggregation_period, " not specified for experiment ", experiment))
 }
 
-## TESTS
-## Compare custom implementation of crpss with that in easyVerification
-ds <- open_dataset("results/exp1/analysis/hindcast/gamlss/yr2to5_lag/prediction/") %>% collect()
-ids <- ds$ID %>% unique()
-models <- ds$model %>% unique()
-subsets <- ds$subset %>% unique()
-years <- ds$year %>% unique() %>% sort()
+## ## TESTS
+## ## Compare custom implementation of crpss with that in easyVerification
+## ds <- open_dataset("results/exp1/analysis/hindcast/gamlss/yr2to5_lag/prediction/") %>% collect()
+## ids <- ds$ID %>% unique()
+## models <- ds$model %>% unique()
+## subsets <- ds$subset %>% unique()
+## years <- ds$year %>% unique() %>% sort()
 
 ## ## Forecast dimensions
 ## n_space <- length(ids)

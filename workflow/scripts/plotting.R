@@ -952,6 +952,78 @@ myplotfun6 <- function(x) {
   p
 }
 
+myplotfun66 <- function(x) {
+  ## We construct the legend using the model, so here we convert
+  ## it to a factor and change the labels to those we want to
+  ## display (defined in preamble)
+  ## x = x %>% mutate(model = as.factor(model))
+  ## x$model = do.call("recode_factor", c(list(x$model), model_display_names))
+  cbbPalette <- RColorBrewer::brewer.pal(2, "Set2")
+  obs =
+    x %>%
+    dplyr::select(year, obs) %>%
+    ## dplyr::select(clim_season, year, obs) %>%
+    distinct(year, .keep_all = TRUE) %>%
+    mutate(type = "Observed")
+  x = x %>% mutate(ID = paste0("ID=", ID)) %>% filter(subset %in% "NAO-matched ensemble")
+  p = ggplot() +
+    theme_bw() +
+    geom_ribbon(
+      aes(ymin=Q01, ymax=Q98, x=year), #, fill=subset), #model),
+      alpha=0.5, data=x
+    ) +
+    geom_point(
+      aes(y=Q50, x=year), data=x #model), data=x
+    ) +
+    geom_line(
+      aes(y=Q01, x=year), colour = "black", data=x, linetype="dotted", size = 1.5 #model), data=x
+    ) +
+    geom_line(
+      aes(y=Q95, x=year), colour = "black", data=x, linetype="dashed", size = 1.5 #model), data=x
+    ) +
+    geom_line(
+      aes(y=Q98, x=year), colour = "black", data=x, linetype="longdash", size = 1.5 #model), data=x
+    ) +
+    ## scale_fill_manual(values = cbbPalette) +
+    ## scale_color_manual(values = cbbPalette) +
+    ## scale_fill_discrete(values = cbbPalette) +
+    ## scale_colour_discrete(values = cbbPalette) +
+    ## facet_wrap(. ~ ID, ncol = 1) + #, labeller = label_parsed) +
+    ## labs(title = paste0("ID=", id)) +
+    ylab(expression(Streamflow~(m^{3}~s^{-1}))) +
+    xlab("") +
+    scale_x_continuous(breaks = pretty_breaks()) +
+    scale_y_continuous(expression(Streamflow~(m^{3}~s^{-1})), breaks = pretty_breaks()) +
+    ## N.B. use alpha to create another legend
+    ## https://aosmith.rbind.io/2020/07/09/ggplot2-override-aes/
+    ## geom_point(
+    geom_line(
+      aes(y=obs, x=year), #, alpha="Observed"),
+      color = "black",
+      data=obs,
+      size = 1 #0.2
+    ) +
+    ## scale_alpha_manual(name=NULL, values=1, breaks="Observed") +
+    ## ggtitle(sprintf("ID = %d", stn_id)) +
+    theme(legend.position = "bottom",
+          legend.direction = "vertical",
+          legend.title = element_blank(),
+          strip.background = element_blank(),
+          panel.grid = element_blank(),
+          strip.text = element_text(size = strip_label_size),
+          legend.text = element_text(size = legend_label_size),
+          axis.title.y = element_text(size = axis_title_size),
+          axis.text.y = element_text(size = axis_label_size_small),
+          axis.text.x = element_text(size = axis_label_size_small))
+
+  ## p = p +
+  ##   guides(
+  ##     fill = guide_legend(order = 2, direction = "horizontal"),
+  ##     color = guide_legend(order = 2, direction = "horizontal")
+  ##   )
+  p
+}
+
 myplotfun_scatter <- function(x) {
   cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
   p <- ggscatter(

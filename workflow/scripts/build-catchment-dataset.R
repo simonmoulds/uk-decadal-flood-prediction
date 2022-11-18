@@ -13,8 +13,8 @@ options(dplyr.summarise.inform = FALSE)
 ## ## TESTING
 ## config = read_yaml("config/config.yml")
 ## obspath = "results/intermediate/obs.parquet"
-## aggr_period = "yr2to9_lag"
-## outputroot = "results/exp1"
+## aggr_period = "yr2to5_lag"
+## outputroot = "results/exp2"
 ## cwd = "workflow/scripts"
 
 if (sys.nframe() == 0L) {
@@ -90,11 +90,18 @@ for (i in 1:n_stations) {
 
   ## Select discharge data for current station
   stn_id = station_ids[i]
+  ## NB season_year is the year of December in DJFM
   dis_djfm =
     observed_discharge_data %>%
     filter(ID %in% stn_id) %>%
     filter(clim_season %in% "DJFM") %>%
     arrange(season_year)
+
+  offset = floor(start + (end - start) / 2) - 1
+  dis_djfm_centred = dis_djfm %>%
+    mutate(init_year = season_year - offset) %>%
+    rename_at(vars(starts_with("Q_"), starts_with("POT_")), function(x) paste0(x, "_centred")) %>%
+    dplyr::select(init_year, starts_with("Q_"), starts_with("POT"))
 
   ## Compute summary statistics for DJFM
   dis_djfm_aggregated = rolling_fun(
@@ -114,6 +121,8 @@ for (i in 1:n_stations) {
     ),
     start = start, end = end
   )
+  dis_djfm_aggregated <- dis_djfm_aggregated %>%
+    left_join(dis_djfm_centred, by = c("init_year"))
 
   ## Join with complete timeseries and update missing_pct
   complete_annual_ts = tibble(init_year = study_period)
@@ -172,8 +181,6 @@ for (i in 1:n_stations) {
     fcst =
       dis_djfm_aggregated %>%
       left_join(ensemble_fcst_subset, by = "init_year")
-      ## ensemble_fcst_subset %>%
-      ## right_join(dis_djfm_aggregated, by = "init_year")
     fcst %>%
       rename(year = init_year) %>%
       mutate(lead_time = min(lead_tm), period = label, subset = subset$name, ID = stn_id) %>%

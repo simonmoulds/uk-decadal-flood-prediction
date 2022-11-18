@@ -19,12 +19,8 @@ library(yaml)
 options(dplyr.summarise.inform = FALSE)
 options(bitmapType = 'cairo') # For server
 
-## TODO
-## Update numbers in manuscript after doing selection based on AIC
-## Check response letter is up to date with changes
-
 ## FOR TESTING:
-config = read_yaml('config/config.yml')
+config = read_yaml('config/config_1.yml')
 aggregation_period = "yr2to5_lag"
 outputroot = 'results/exp1'
 cwd = 'workflow/scripts'
@@ -44,6 +40,7 @@ source(file.path(cwd, "plotting.R"))
 config[["modelling"]] <- parse_config_modelling(config)
 
 skill_measure = "crpss"
+all_skill_measures <- c("crps_fcst", "crps_ens_fcst", "crps_climat", "crpss", "aic")
 
 output_dir = file.path(outputroot, "fig", aggregation_period)
 if (!dir.exists(output_dir)) {
@@ -76,69 +73,13 @@ obs_aggregation_period_label = aggregation_period_label
 ## ####################################################### ##
 ## ####################################################### ##
 
-## Functions
-myfun <- function(x) {
-  ## Select the best model based on AIC value
-  x_best =
-    x %>%
-    group_by(ID, subset, period) %>%
-    filter(crps_ens_fcst==min(crps_ens_fcst))
-    ## filter(aic == min(aic))
-    ## filter(!!sym(skill_measure) == max(!!sym(skill_measure)))
-  skill =
-    gauge_stns %>%
-    left_join(x_best) %>%
-    mutate(skill = !!sym(skill_measure))
-  skill
-}
-
-load_model_fit <- function(config, experiment, aggregation_period) {
-  ds <- open_dataset(
-    file.path(outputroot, "analysis", experiment, "gamlss", aggregation_period, "fit")
-  ) %>% collect()
-  ds <- ds %>% mutate(period = aggregation_period)
-  ds
-}
-
-load_skill_scores <- function(config, experiment, aggregation_period) {
-  ds <- open_dataset(
-    file.path(outputroot, "analysis", experiment, "gamlss", aggregation_period, "prediction")
-  ) %>% collect()
-  skill <- ds %>%
-    group_by(ID, model, subset) %>%
-    summarize(
-      crps_fcst = mean(crps_fcst),
-      crps_ens_fcst = mean(crps_ens_fcst),
-      crps_climat = mean(crps_climat),
-      aic=mean(aic)
-    ) %>%
-    ## mutate(crpss = 1 - (crps_fcst / crps_climat)) %>%
-    mutate(crpss = 1 - (crps_ens_fcst / crps_climat)) %>% # TODO check
-    mutate(period = aggregation_period)
-  return(skill)
-}
-
 ## Load model skill scores for observed and hindcast experiments
-obs_model_levels <- c("STATIONARY", "TIME", "NAO", "NAO_P", "P", "P_T", "NAO_P_T")
-obs_model_labels <- c("STATIONARY", "TIME", "NAO", "NAOP", "P", "PT", "NAOPT")
-obs_skill_scores <- load_skill_scores(config, "observed", obs_aggregation_period) %>%
-  filter(model %in% obs_model_levels) %>%
-  mutate(model = factor(model, levels = obs_model_levels, labels = obs_model_labels))
-
-model_levels <- c("NAO", "NAO_P", "P", "P_T", "NAO_P_T")
-model_labels <- c("NAO", "NAOP", "P", "PT", "NAOPT")
-skill_scores <-
-  load_skill_scores(config, "hindcast", aggregation_period) %>%
-  filter(model %in% model_levels) %>%
-  mutate(model = factor(model, levels = model_levels, labels = model_labels))
+obs_skill_scores <- load_skill_scores(config, "observed", obs_aggregation_period)
+skill_scores <- load_skill_scores(config, "hindcast", aggregation_period)
 station_ids <- skill_scores$ID %>% unique()
 
 ## Load model fit metrics for hindcast experiment
-fit <-
-  load_model_fit(config, "hindcast", aggregation_period) %>%
-  mutate(kurtosis = kurtosis - 3) %>%
-  filter(model %in% model_levels) %>%
-  mutate(model = factor(model, levels = model_levels, labels = model_labels))
+fit <- load_model_fit(config, "hindcast", aggregation_period) %>% mutate(kurtosis = kurtosis - 3)
 
 ## For spatial plots:
 uk_boundary =
@@ -724,7 +665,6 @@ ggsave(file.path(output_dir, "fig1.png"), plot = p, width = 6, height = 6.05, un
 ## ####################################################### ##
 ## ####################################################### ##
 
-all_skill_measures <- c("crps_fcst", "crps_ens_fcst", "crps_climat", "crpss", "aic")
 skill_scores_subset =
   skill_scores %>%
   filter(model %in% c("P", "PT")) %>% #, "NAOPT")) %>%
@@ -1041,13 +981,9 @@ skill =
 ids_best = head(skill, n=5)$ID
 models_best = as.character(head(skill, n=5)$model)
 
-predictions = open_dataset(
-  file.path(outputroot, "analysis", "hindcast", "gamlss", aggregation_period, "prediction")
-) %>%
-  collect() %>%
-  filter(subset %in% c("full", "best_n")) %>%
+predictions <-
+  load_model_predictions(config, "hindcast", aggregation_period) %>%
   mutate(subset = ifelse(subset == "best_n", "NAO-matched ensemble", "Full ensemble"))
-predictions$model <- factor(predictions$model, levels = model_levels, labels = model_labels)
 predictions <- predictions %>% mutate(obs = Q_95_obs, exp = Q_95_exp)
 
 library(viridis)
@@ -1403,11 +1339,9 @@ ggsave(file.path(output_dir, "fig4.png"), plot = p, width = 5, height = 5, units
 ## ####################################################### ##
 ## ####################################################### ##
 
-fit <-
-  load_model_fit(config, "hindcast", aggregation_period) %>%
-  mutate(kurtosis = kurtosis - 3) %>%
-  filter(model %in% model_levels) %>%
-  mutate(model = factor(model, levels = model_levels, labels = model_labels))
+fit <- load_model_fit(config, "hindcast", aggregation_period) %>% mutate(kurtosis = kurtosis - 3) #%>%
+  ## filter(model %in% model_levels) %>%
+  ## mutate(model = factor(model, levels = model_levels, labels = model_labels))
 skill_scores_subset <- skill_scores %>% dplyr::select(-aic) %>% left_join(fit)
 
 skill_scores_subset <-
@@ -1903,12 +1837,14 @@ ids_best = head(skill$ID, n=5)
 ids_worst = tail(skill$ID, n=5)
 
 dataset_dir = config$modelling[["hindcast"]]$input_dataset
-predictions = open_dataset(
-  file.path(outputroot, "analysis", "hindcast", "gamlss", aggregation_period, "prediction")
-) %>%
-  collect() %>%
-  filter(model %in% c("P", "P_T", "NAO_P_T"))
-predictions$model = factor(predictions$model, levels = model_levels, labels = model_labels)
+predictions <- load_model_predictions(config, "hindcast", aggregation_period)
+predictions <- predictions %>% filter(subset %in% "full")
+## predictions = open_dataset(
+##   file.path(outputroot, "analysis", "hindcast", "gamlss", aggregation_period, "prediction")
+## ) %>%
+##   collect() %>%
+##   filter(model %in% c("P", "P_T", "NAO_P_T"))
+## predictions$model = factor(predictions$model, levels = model_levels, labels = model_labels)
 predictions <- predictions %>% mutate(obs = Q_95_obs, exp = Q_95_exp)
 predictions <-
   predictions %>%
@@ -1916,78 +1852,78 @@ predictions <-
   mutate(model = droplevels(model))
 
 p1 <- predictions %>%
-  filter(ID %in% ids_best[1] & subset %in% "full") %>%
+  filter(ID %in% ids_best[1]) %>%
   myplotfun11()
 p1 <- p1 +
   labs(title = paste0("ID=", ids_best[1])) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p2 <- predictions %>%
-  filter(ID %in% ids_best[2] & subset %in% "full") %>%
+  filter(ID %in% ids_best[2]) %>%
   myplotfun11()
 p2 <- p2 +
   labs(title = paste0("ID=", ids_best[2])) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p3 <- predictions %>%
-  filter(ID %in% ids_best[3] & subset %in% "full") %>%
+  filter(ID %in% ids_best[3]) %>%
   myplotfun11()
 p3 <- p3 +
   labs(title = paste0("ID=", ids_best[3])) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p4 <- predictions %>%
-  filter(ID %in% ids_best[4] & subset %in% "full") %>%
+  filter(ID %in% ids_best[4]) %>%
   myplotfun11()
 p4 <- p4 +
   labs(title = paste0("ID=", ids_best[4])) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p5 <- predictions %>%
-  filter(ID %in% ids_best[5] & subset %in% "full") %>%
+  filter(ID %in% ids_best[5]) %>%
   myplotfun11()
 p5 <- p5 +
   labs(title = paste0("ID=", ids_best[5])) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p6 <- predictions %>%
-  filter(ID %in% ids_worst[1] & subset %in% "full") %>%
+  filter(ID %in% ids_worst[1]) %>%
   myplotfun11()
 p6 <- p6 +
   labs(title = paste0("ID=", ids_worst[1])) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p7 <- predictions %>%
-  filter(ID %in% ids_worst[2] & subset %in% "full") %>%
+  filter(ID %in% ids_worst[2]) %>%
   myplotfun11()
 p7 <- p7 +
   labs(title = paste0("ID=", ids_worst[2])) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p8 <- predictions %>%
-  filter(ID %in% ids_worst[3] & subset %in% "full") %>%
+  filter(ID %in% ids_worst[3]) %>%
   myplotfun11()
 p8 <- p8 +
   labs(title = paste0("ID=", ids_worst[3])) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p9 <- predictions %>%
-  filter(ID %in% ids_worst[4] & subset %in% "full") %>%
+  filter(ID %in% ids_worst[4]) %>%
   myplotfun11()
 p9 <- p9 +
   labs(title = paste0("ID=", ids_worst[4])) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
 p10 <- predictions %>%
-  filter(ID %in% ids_worst[5] & subset %in% "full") %>%
+  filter(ID %in% ids_worst[5]) %>%
   myplotfun11()
 p10 <- p10 +
   labs(title = paste0("ID=", ids_worst[15])) +
   theme(plot.title = element_text(size = tag_label_size, margin = margin(0,0,1,0, unit="pt")))
 
-make_annotation <- function(crpss, id) {
-  crpss_p <- crpss %>% filter(ID %in% id & subset %in% "full" & model %in% "P") %>% `$`(crpss)
-  crpss_pt <- crpss %>% filter(ID %in% id & subset %in% "best_n" & model %in% "PT") %>% `$`(crpss)
+make_annotation <- function(skill_scores, id) {
+  crpss_p <- skill_scores %>% filter(ID %in% id & subset %in% "full" & model %in% "P") %>% `$`(crpss)
+  crpss_pt <- skill_scores %>% filter(ID %in% id & subset %in% "best_n" & model %in% "PT") %>% `$`(crpss)
   annotation = paste0(
     paste0(
       "CRPSS (P) = ", sprintf(crpss_p, fmt = "%#.2f"), "\n"#, " ", format_p_value(acc_full$acc_p), "\n"
@@ -2930,23 +2866,39 @@ skill_scores_subset <-
   filter(crps_ens_fcst == min(crps_ens_fcst)) %>%
   dplyr::select(-any_of(all_skill_measures)) %>% ungroup()
 
-predictions = open_dataset(
-  file.path(outputroot, "analysis", "hindcast", "gamlss", aggregation_period, "prediction")
-) %>%
-  collect() %>%
+predictions <-
+  load_model_predictions(config, "hindcast", aggregation_period) %>%
+  mutate(subset = ifelse(subset == "best_n", "NAO-matched ensemble", "Full ensemble"))
+
+predictions <- predictions %>%
   dplyr::select(-matches("Q[0-9]{2}")) %>%
   dplyr::select(-mu, -sigma, -shape, -scale, -date) %>%
-  dplyr::select(-any_of(all_skill_measures)) %>%
-  mutate(model = factor(model, levels = model_levels, labels = model_labels))
+  dplyr::select(-any_of(all_skill_measures)) #%>%
+  ## mutate(model = factor(model, levels = model_levels, labels = model_labels))
+## predictions = open_dataset(
+##   file.path(outputroot, "analysis", "hindcast", "gamlss", aggregation_period, "prediction")
+## ) %>%
+##   collect() %>%
+##   dplyr::select(-matches("Q[0-9]{2}")) %>%
+##   dplyr::select(-mu, -sigma, -shape, -scale, -date) %>%
+##   dplyr::select(-any_of(all_skill_measures)) %>%
+##   mutate(model = factor(model, levels = model_levels, labels = model_labels))
 
 ## Take the best model for each ID/subset combination
 id_year <- predictions %>% dplyr::select(ID, year) %>% distinct()
-skill_scores_subset <- id_year %>% full_join(skill_scores_subset) %>% dplyr::select(-period)
+
+skill_scores_subset <-
+  id_year %>%
+  full_join(skill_scores_subset) %>% dplyr::select(-period)
+
+skill_scores_subset <-
+  skill_scores_subset %>%
+  mutate(subset = ifelse(subset == "best_n", "NAO-matched ensemble", "Full ensemble"))
 
 predictions <- skill_scores_subset %>% left_join(predictions, by = c("ID", "subset", "model", "year"))
-predictions <-
-  predictions %>%
-  mutate(subset = ifelse(subset == "best_n", "NAO-matched ensemble", "Full ensemble"))
+## predictions <-
+##   predictions %>%
+##   ## mutate(subset = ifelse(subset == "best_n", "NAO-matched ensemble", "Full ensemble"))
 
 ## predictions$model = factor(predictions$model, levels = model_levels, labels = model_labels)
 predictions <- predictions %>% mutate(obs = Q_95_obs, exp = Q_95_exp)
