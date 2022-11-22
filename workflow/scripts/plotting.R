@@ -1435,7 +1435,7 @@ myplotfun_nao_raw <- function(full_fcst, ensemble_fcst) {
              levels = c("obs", "full_ens_mean", "ens_q95", "ens_q05"),
              labels = c("Observed", "Modelled", "ens_q95", "ens_q05")))
 
-  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")[2:1]
   p1 = ggplot() +
     geom_ribbon(
       data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
@@ -1509,7 +1509,8 @@ myplotfun_nao_matched <- function(full_fcst, ensemble_fcst) {
              labels = c("Observed", "Modelled", "ens_mean_var_adj"))) %>%
     mutate(value = ifelse(init_year < 1964, NA, value))
 
-  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  ## cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")[2:1]
   p2 = ggplot() +
     geom_line(
       data = plotdata %>% filter(statistic %in% c("ens_mean_var_adj")),
@@ -1583,7 +1584,8 @@ myplotfun_amv_raw <- function(full_fcst, ensemble_fcst) {
              labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
     mutate(value = ifelse(init_year < 1964, NA, value))
 
-  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  ## cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")[2:1]
   p3 = ggplot() +
     geom_ribbon(
       data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
@@ -1654,7 +1656,8 @@ myplotfun_amv_matched <- function(nao_matched_fcst, ensemble_fcst) {
     mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
     mutate(value = ifelse(init_year < 1964, NA, value))
 
-  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  ## cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")[2:1]
   p4 = ggplot() +
     geom_line(
       data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
@@ -1724,7 +1727,8 @@ myplotfun_precip_raw <- function(full_fcst, ensemble_fcst) {
              labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
     mutate(value = ifelse(init_year < 1964, NA, value))
 
-  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  ## cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")[2:1]
   p5 = ggplot() +
     geom_ribbon(
       data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
@@ -1795,7 +1799,8 @@ myplotfun_precip_matched <- function(nao_matched_fcst, ensemble_fcst) {
     mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
     mutate(value = ifelse(init_year < 1964, NA, value))
 
-  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  ## cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")[2:1]
   p6 = ggplot() +
     geom_line(
       data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
@@ -1865,7 +1870,8 @@ myplotfun_temp_raw <- function(full_fcst, ensemble_fcst) {
              labels = c("Observed", "Modelled", "ens_q95", "ens_q05"))) %>%
     mutate(value = ifelse(init_year < 1964, NA, value))
 
-  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  ## cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")[2:1]
   p7 = ggplot() +
     geom_ribbon(
       data = plotdata %>% filter(statistic %in% c("ens_q95", "ens_q05")) %>% pivot_wider(names_from = statistic, values_from = value),
@@ -1936,7 +1942,8 @@ myplotfun_temp_matched <- function(nao_matched_fcst, ensemble_fcst) {
     mutate(statistic = factor(statistic, levels = c("obs", "ens_mean_var_adj"), labels = c("Observed", "Modelled"))) %>%
     mutate(value = ifelse(init_year < 1964, NA, value))
 
-  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  ## cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")[2:1]
   p8 = ggplot() +
     geom_line(
       data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),

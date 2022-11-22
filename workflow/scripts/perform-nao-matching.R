@@ -21,12 +21,12 @@ options(bitmapType = "cairo")
 options(dplyr.summarise.inform = FALSE)
 
 ## ## TESTING
-## config = read_yaml('config/config.yml')
+## config = read_yaml('config/config_1.yml')
 ## obspath = 'results/intermediate/obs.parquet'
 ## fcstpath = 'results/intermediate/ensemble-forecast'
-## aggr_period = 'yr2to9_lag'
+## aggr_period = 'yr2to5_lag'
 ## outputroot = 'results/exp2/analysis'
-## cwd = 'workflow/scripts/external/R'
+## cwd = 'workflow/scripts'
 
 ## Extract configuration info
 if (sys.nframe() == 0L) {

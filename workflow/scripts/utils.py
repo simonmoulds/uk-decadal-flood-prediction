@@ -73,6 +73,9 @@ def _compute_mean_djfm(ds, varname, init_year, start_year=2, end_year=9):
         else:
             raise ValueError("Ambiguous time dimension")
 
+    # FIXME Select DJFM from dataset
+    ds = ds.where(ds.time.dt.month.isin([12, 1, 2, 3]), drop=True)
+
     ds['counter'] = ((time_dimname,), [1, ] * len(ds.time))
     ds = ds.groupby('season_year').sum(time_dimname)
     # Limit dataset to complete [boreal winter] seasons
@@ -169,6 +172,7 @@ def _ensemble_preprocessor(inputdir, outputdir, config):
     # Process files, sorting them on the basis of the filename
     data = []
     for i in tqdm(range(len(fs))):
+        f = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/esmvaltool_output/recipe_s20_cmip6_autogen_20221116_114454/work/nao/nao/CMIP6_NorCPM1_Amon_dcppA-hindcast_s2010-r9i2p1f1_psl_gn_2011-2019.nc'
         f = fs[i]
         meta = _parse_filepath(f)
         ds = xarray.open_dataset(f)

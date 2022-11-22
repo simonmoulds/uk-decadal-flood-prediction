@@ -4,6 +4,7 @@ import click
 
 from utils import _ensemble_preprocessor
 
+
 @click.command()
 @click.option('-i', '--inputdir', default='.', help='Input directory')
 @click.option('-o', '--outputdir', default='.', help='Output directory')

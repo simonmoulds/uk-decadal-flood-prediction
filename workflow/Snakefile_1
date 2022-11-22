@@ -138,4 +138,3 @@ rule make_plots:
         """
         Rscript {input.script} {input.config} {wildcards.aggr_plot} {params.outputdir}
         """
-

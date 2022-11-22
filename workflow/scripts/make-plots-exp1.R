@@ -19,22 +19,22 @@ library(yaml)
 options(dplyr.summarise.inform = FALSE)
 options(bitmapType = 'cairo') # For server
 
-## FOR TESTING:
-config = read_yaml('config/config_1.yml')
-aggregation_period = "yr2to5_lag"
-outputroot = 'results/exp1'
-cwd = 'workflow/scripts'
+## ## FOR TESTING:
+## config = read_yaml('config/config_1.yml')
+## aggregation_period = "yr2to5_lag"
+## outputroot = 'results/exp1'
+## cwd = 'workflow/scripts'
 
-## ## Extract configuration info
-## if (sys.nframe() == 0L) {
-##   args = commandArgs(trailingOnly=TRUE)
-##   config = read_yaml(args[1])
-##   aggregation_period = args[2]
-##   outputroot = args[3]
-##   args = commandArgs()
-##   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
-##   cwd <- dirname(regmatches(args, m))
-## }
+## Extract configuration info
+if (sys.nframe() == 0L) {
+  args = commandArgs(trailingOnly=TRUE)
+  config = read_yaml(args[1])
+  aggregation_period = args[2]
+  outputroot = args[3]
+  args = commandArgs()
+  m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
+  cwd <- dirname(regmatches(args, m))
+}
 source(file.path(cwd, "utils.R"))
 source(file.path(cwd, "plotting.R"))
 config[["modelling"]] <- parse_config_modelling(config)
