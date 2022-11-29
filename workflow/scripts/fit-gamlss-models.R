@@ -12,11 +12,11 @@ library(optparse)
 options(dplyr.summarise.inform = FALSE)
 
 ## ## FOR TESTING:
-## config = read_yaml('config/config.yml')
+## config = read_yaml('config/config_1.yml')
 ## experiment = 'observed'
-## aggregation_period = 'yr2to5'
+## aggregation_period = 'yr2'
 ## method = 'forward'
-## outputroot = 'results/exp2'
+## outputroot = 'results/exp1'
 ## cwd = 'workflow/scripts/'
 
 if (sys.nframe() == 0L) {
@@ -58,7 +58,6 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
     next
   }
   ds <- open_dataset(input_dir) %>% collect()
-
   ## In `ds`, column `year` currently represents the year of initialization.
   ## Here we change `year` to represent the first month of the prediction
   ## window, consistent with that used by the the ML/AI routines.
@@ -100,7 +99,6 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
     catchment_data =
       ds %>%
       filter(ID %in% stn_id & year %in% experiment_conf$study_period)
-
     ## Normalize discharge
     catchment_area = metadata[["catchment-area"]][metadata$id %in% stn_id] # km2
     catchment_data =

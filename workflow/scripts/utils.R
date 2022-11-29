@@ -212,19 +212,38 @@ get_obs <- function(filename, study_period, start = 2, end = 9) {
     filter(month %in% c(12, 1, 2, 3)) %>%
     group_by(season_year) %>%
     filter(n() == 4) # Only complete DJFM seasons
-  vars = c("nao", "ea", "amv", "european_precip", "uk_precip", "uk_temp")
 
   ## Compute average seasonal values
-  obs = obs %>% summarize(across(all_of(vars), mean))
+  vars = c("nao", "ea", "amv", "european_precip", "uk_precip", "uk_temp")
+  obs = obs %>% summarize(across(starts_with(vars), mean))
+
+  obs_antecedent <- obs_raw %>%
+    filter(month %in% c(9, 10, 11)) %>%
+    mutate(season_year = year) %>%
+    group_by(season_year) #%>%
+    ## filter(n() == 3) # Only complete SON seasons
+
+  antecedent_vars <- c("european_precip", "uk_temp", "uk_precip")
+  obs_antecedent <- obs_antecedent %>%
+    summarize(across(starts_with(antecedent_vars), mean)) %>%
+    rename_at(vars(starts_with(antecedent_vars)), function(x) paste0(x, "_antecedent"))
+
+  obs <- obs %>% left_join(obs_antecedent, by="season_year")
+  all_vars <- names(obs)
+  all_vars <- all_vars[!all_vars %in% "season_year"]
+  ## obs = obs %>% summarize(across(all_of(vars), mean))
+  ## all_antecedent_vars <- names(obs_antecedent)
+  ## all_antecedent_vars <- all_antecedent_vars[!all_antecedent_vars %in% "season_year"]
 
   ## Calculate decadal means [function defined in `utils.R`]
   ## N.B. in this data frame season year is the year in which
   ## the start of the season falls [i.e. for DJFM it is the
-  ## year of December]
+  ## year in which December falls
   obs = rolling_fun(
     yrs = obs$season_year,
     data = obs,
-    cols = vars,
+    ## cols = vars,
+    cols = all_vars,
     funs = mean,
     start = start, end = end
   )
@@ -240,7 +259,8 @@ get_obs <- function(filename, study_period, start = 2, end = 9) {
   compute_anomaly = function(x) x - mean(x, na.rm = TRUE)
   obs =
     obs %>%
-    mutate(across(all_of(vars), compute_anomaly)) %>%
+    ## mutate(across(all_of(vars), compute_anomaly)) %>%
+    mutate(across(all_of(all_vars), compute_anomaly)) %>%
     ungroup()
   ## ## Convert to long format
   ## obs = obs %>% gather(variable, obs, -init_year)
@@ -261,8 +281,10 @@ get_hindcast_data <- function(dataset, study_period, lead_times) {
     ensemble_fcst_raw %>%
     mutate(nao = nao / 100) %>%
     mutate(ea = ea / 100) %>%
-    mutate(european_precip = european_precip * 60 * 60 * 24) %>%
-    mutate(uk_precip = uk_precip * 60 * 60 * 24)
+    mutate(across(starts_with("european_precip"), function(x) x * 60 * 60 * 24)) %>%
+    mutate(across(starts_with("uk_precip"), function(x) x * 60 * 60 * 24))
+    ## mutate(european_precip = european_precip * 60 * 60 * 24) %>%
+    ## mutate(uk_precip = uk_precip * 60 * 60 * 24)
   ## ## Correct initialisation years for GFDL data, which appear to be incorrect
   ## gfdl_index = ensemble_fcst_raw$source_id %in% "GFDL-CM2p1"
   ## ensemble_fcst_raw$init_year[gfdl_index] = ensemble_fcst_raw$init_year[gfdl_index] - 1
@@ -436,12 +458,16 @@ corr_cross_validate <- function(fcst, obs, leave_out_add=0) {
       leave_out_index = c()
     }
     keep_index = !(index %in% leave_out_index)
-    corr_this = cor.test(
+    corr_this = try(cor.test(
       fcst[keep_index],
       obs[keep_index],
       method="pearson", alternative="greater"
-    )
-    corr[i] = unname(corr_this$estimate)
+    ), silent=TRUE)
+    if (isTRUE(inherits(corr_this, "try-error"))) {
+      corr[i] = NA
+    } else {
+      corr[i] = unname(corr_this$estimate)
+    }
   }
   corr
 }
@@ -531,9 +557,40 @@ calculate_error <- function(fcst, ensemble_fcst, n_years, n_forecast, match_var)
   return(nao_matched_ensemble_fcst)
 }
 
+parse_grid_cell <- function(x) {
+  grid_lat = str_extract(x, "(N|S)\\d+\\.*\\d*")
+  grid_lon = str_extract(x, "(E|W)\\d+\\.*\\d*")
+  north = toupper(str_sub(grid_lat, 1, 1)) == "N"
+  east = toupper(str_sub(grid_lon, 1, 1)) == "E"
+  grid_lat = str_sub(grid_lat, 2, -1) %>% as.numeric()
+  grid_lon = str_sub(grid_lon, 2, -1) %>% as.numeric()
+  grid_lat = ifelse(north, grid_lat, grid_lat * -1)
+  grid_lon = ifelse(east, grid_lon, grid_lon * -1)
+  lapply(seq_len(length(x)), FUN=function(i) c(grid_lon[i], grid_lat[i]))
+}
+
+select_nearest_grid_cell <- function(lat, lon, grid_coords) {
+  ## grid_coords <- c(
+  ##   "uk_precip_field_N50.0_W0.0",
+  ##   "uk_precip_field_N50.0_W10.0",
+  ##   "uk_precip_field_N50.0_W5.0",
+  ##   "uk_precip_field_N55.0_W0.0",
+  ##   "uk_precip_field_N55.0_W10.0",
+  ##   "uk_precip_field_N55.0_W5.0",
+  ##   "uk_precip_field_N60.0_W0.0",
+  ##   "uk_precip_field_N60.0_W10.0",
+  ##   "uk_precip_field_N60.0_W5.0")
+  ## lat = 52.6
+  ## lon = -2.6
+  coords <- parse_grid_cell(grid_coords)
+  dists <- sapply(coords, FUN=function(x) geosphere::distHaversine(c(lon, lat), x))
+  i <- which.min(dists)
+  grid_coords[i]
+}
+
 create_ensemble_forecast <- function(ensemble_fcst_error,
                                     ensemble_fcst,
-                                    vars = climate_vars,
+                                    vars,
                                     model_select = NA,
                                     project_select = NA,
                                     full = TRUE,
@@ -598,7 +655,8 @@ create_ensemble_forecast <- function(ensemble_fcst_error,
   ensemble_fcst =
     ensemble_fcst %>%
     group_by_at(ensemble_group_vars) %>%
-    summarize(across(all_of(vars), mean, na.rm = TRUE))
+    summarize(across(starts_with(vars), mean, na.rm = TRUE))
+    ## summarize(across(all_of(vars), mean, na.rm = TRUE))
   ensemble_fcst
 }
 

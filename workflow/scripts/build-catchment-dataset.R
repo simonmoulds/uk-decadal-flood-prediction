@@ -11,10 +11,10 @@ library(yaml)
 options(dplyr.summarise.inform = FALSE)
 
 ## ## TESTING
-## config = read_yaml("config/config.yml")
+## config = read_yaml("config/config_1.yml")
 ## obspath = "results/intermediate/obs.parquet"
-## aggr_period = "yr2to5_lag"
-## outputroot = "results/exp2"
+## aggr_period = "yr2"
+## outputroot = "results/exp1"
 ## cwd = "workflow/scripts"
 
 if (sys.nframe() == 0L) {
@@ -28,7 +28,6 @@ if (sys.nframe() == 0L) {
   cwd <- dirname(regmatches(args, m))
 }
 source(file.path(cwd, "utils.R")) # TODO eventually put utils in package
-## config = parse_config(config)
 config[["aggregation_period"]] = parse_config_aggregation_period(config)
 config[["subset"]] <- parse_config_subset(config)
 
@@ -37,11 +36,13 @@ study_period = 1960:2005
 extended_study_period = 1960:2015
 climate_vars = c("nao", "ea", "amv", "european_precip", "uk_precip", "uk_temp")
 
-observed_discharge_data =
+observed_discharge_data <-
   open_dataset(file.path(outputroot, "nrfa-discharge-summaries")) %>%
   collect()
-station_ids = observed_discharge_data$ID %>% unique
-n_stations = length(station_ids)
+station_ids <- observed_discharge_data$ID %>% unique
+n_stations <- length(station_ids)
+
+metadata <- read_parquet("results/exp1/nrfa-metadata.parquet")
 
 ## Parse aggregation period specification
 period = config$aggregation_period[[aggr_period]]
@@ -58,30 +59,44 @@ error_label = period$error_name
 output_dir = file.path(outputroot, "analysis", label, "input")
 
 ## Load observed climate data
-obs = get_obs(obspath, extended_study_period, start = start, end = end)
+obs <- get_obs(obspath, extended_study_period, start = start, end = end)
+all_na <- sapply(obs, FUN=function(x) all(is.na(x))) %>% unname()
+obs <- obs[,!all_na]
+obs <- obs %>% pivot_longer(-init_year, names_to="variable", values_to="value")
+
+convert_to_local <- function(x, lat, lon) {
+  vars <- x$variable %>% unique() %>% sort()
+  field_vars <- grep("(N|S)\\d+\\.*\\d*_(E|W)\\d+\\.*\\d*", vars, value=TRUE)
+  field_vars_regex <- gsub(
+    "(N|S)\\d+\\.*\\d+_(E|W)\\d+\\.*\\d+",
+    "(N|S)\\\\d+\\\\.*\\\\d+_(E|W)\\\\d+\\\\.*\\\\d+", field_vars
+  ) %>% unique()
+  field_vars_regex <- paste0("^", field_vars_regex, "$")
+  x_local <- x
+  for (i in 1:length(field_vars_regex)) {
+    fv <- grep(field_vars_regex[i], field_vars, value=TRUE)
+    nearest_field_var <- select_nearest_grid_cell(lat, lon, fv)
+    new_name <-
+      gsub("_(N|S)\\d+\\.*\\d+_(E|W)\\d+\\.*\\d+", "", nearest_field_var)
+    x_local <- x_local %>%
+      mutate(across('variable', str_replace, nearest_field_var, new_name))
+  }
+  x_local <- x_local %>% filter(!variable %in% field_vars)
+  x_local
+}
 
 ## Load ensemble data
 ensemble_fcst = read_parquet(
   file.path(outputroot, "analysis", label, "matched_ensemble.parquet")
 ) %>%
-##   file.path(outputroot, config$output_data$hindcast, label, "matched_ensemble.parquet")
-## ) %>%
   mutate(lag = init_year - init_year_matched + 1)
 
+## Load ensemble error data (from NAO-matching)
 ensemble_fcst_error = read_parquet(
   file.path(outputroot, "analysis", error_label, "matched_ensemble_error.parquet")
 ) %>%
-##   file.path(outputroot, config$output_data$hindcast, error_label, "matched_ensemble_error.parquet")
-## ) %>%
   mutate(across(contains("init_year"), as.integer)) %>%
   arrange(source_id, member, init_year, init_year_matched)
-
-## Clean output subdirectory
-## aggr_output_dir = file.path(hindcast_output_dir, label, "input")
-## ## aggr_output_dir = file.path(outputroot, "hindcast-analysis", label, "input")
-## if (dir.exists(aggr_output_dir))
-##   unlink(aggr_output_dir, recursive = TRUE)
-## dir.create(aggr_output_dir, recursive = TRUE)
 
 ## Loop through catchments to create input datasets for statistical modelling
 cat(sprintf("Creating catchment dataset for accumulation period %s\n", label))
@@ -90,6 +105,11 @@ for (i in 1:n_stations) {
 
   ## Select discharge data for current station
   stn_id = station_ids[i]
+  lat <- metadata %>% filter(id %in% stn_id) %>% `$`(latitude)
+  lon <- metadata %>% filter(id %in% stn_id) %>% `$`(longitude)
+  ensemble_fcst_local <- convert_to_local(ensemble_fcst, lat, lon)
+  obs_local <- convert_to_local(obs, lat, lon)
+
   ## NB season_year is the year of December in DJFM
   dis_djfm =
     observed_discharge_data %>%
@@ -132,44 +152,33 @@ for (i in 1:n_stations) {
     mutate(missing_pct = ifelse(is.na(missing_pct), 100, missing_pct))
 
   ## Save observed data (observed discharge + observed climate indices)
-  ## if (save_obs) {
-  ## Compute anomalies and standardize
   standardize = function(x) return((x - mean(x)) / sd(x))
   obs_aggregated =
-    obs %>%
+    obs_local %>%
+    group_by(variable) %>%
     filter(init_year %in% study_period) %>%
-    mutate(across(all_of(climate_vars), standardize))
+    mutate(value=standardize(value)) %>%
+    pivot_wider(init_year, names_from="variable", values_from="value")
+
   ## Join with observed discharge data
   dis_djfm_obs =
     dis_djfm_aggregated %>%
     left_join(obs_aggregated, by="init_year")
-  ## ## Write dataset to file
-  ## output_dir = file.path(outputroot, "observed-analysis", label, "input")
-  ## if (!dir.exists(output_dir)) {
-  ##   dir.create(output_dir, recursive = TRUE)
-  ## }
-  ## dis_djfm_obs <-
+  ## Write dataset to file
   dis_djfm_obs %>%
     rename(year = init_year) %>%
     mutate(lead_time = min(lead_tm), period = label, subset = "observed", ID = stn_id) %>%
     arrange(year) %>%
     group_by(subset, ID) %>%
     write_dataset(output_dir, format = "parquet")
-    ## mutate(period = label, ID = stn_id, subset = "observed")
-    ## mutate(period = label, ID = stn_id) %>%
-    ## group_by(ID) %>%
-    ## write_dataset(output_dir, format = "parquet")
-  ## }
 
   ## Save hindcast data (observed discharge + hindcast climate indices)
-  ## if (save_fcst) {
-  ## Make ensemble forecasts
   for (k in 1:length(config$subset)) {
     subset = config$subset[[k]]
     ## TODO ensure `value` in ensemble_fcst is anomaly
     ensemble_fcst_subset = create_ensemble_forecast(
       ensemble_fcst_error,
-      ensemble_fcst,
+      ensemble_fcst_local,
       vars = climate_vars,
       model_select = subset$models,
       project_select = subset$projects,
@@ -188,13 +197,22 @@ for (i in 1:n_stations) {
       group_by(subset, ID) %>%
       write_dataset(output_dir, format = "parquet")
   }
-  ## }
   ## Update progress bar
   setTxtProgressBar(pb, i)
 }
 close(pb)
-## }
 
+
+
+
+
+
+
+
+
+
+## NOT USED:
+##
 ## meta = data.frame(
 ##   id = ukbn2_stations,
 ##   gdf_start_date = as.Date(start_date, format="%Y-%m-%d"),

@@ -19,9 +19,12 @@ from functools import reduce
 from calendar import monthrange
 from tqdm import tqdm
 
+from esmvalcore import *
+
 VALID_Y_NAMES = ['latitude', 'lat']
 VALID_X_NAMES = ['longitude', 'lon']
 VALID_TIME_NAMES = ['t', 'time']
+
 
 def _parse_filepath(fpath):
     # Parse CMIP-formatted filename to get key id variables
@@ -51,16 +54,29 @@ def _parse_filepath(fpath):
     return out
 
 
-def _compute_mean_djfm(ds, varname, init_year, start_year=2, end_year=9):
+def _compute_mean_season(ds,
+                         varname,
+                         init_year,
+                         season=[12, 1, 2, 3],
+                         start_year=2,
+                         end_year=9):
+
     # Compute the mean value for DJFM season.
     #
     # Args:
     #   ds        : xarray dataset
     #   varname   : string. Variable name.
     #   init_year : int. Initialization year of `ds`
+    #   season    : list.
+    #   start_year: int.
+    #   end_year  : int.
     #
     # Returns:
     #   xarray dataset.
+
+    n_months = len(season)
+    if not all([month in range(1, 13) for month in season]):
+        raise ValueError("`season` contains invalid months")
 
     # Sometimes Iris "fixes" a non-monotonic time
     # dimension by adding another dimension
@@ -73,26 +89,24 @@ def _compute_mean_djfm(ds, varname, init_year, start_year=2, end_year=9):
         else:
             raise ValueError("Ambiguous time dimension")
 
-    # FIXME Select DJFM from dataset
-    ds = ds.where(ds.time.dt.month.isin([12, 1, 2, 3]), drop=True)
+    # This is now necessary because we have included additional months
+    ds = ds.where(ds.time.dt.month.isin(season), drop=True)
 
     ds['counter'] = ((time_dimname,), [1, ] * len(ds.time))
     ds = ds.groupby('season_year').sum(time_dimname)
-    # Limit dataset to complete [boreal winter] seasons
-    complete_index = ds['counter'].values == 4
+    # Limit dataset to complete seasons
+    complete_index = ds['counter'].values == n_months
     ds = ds.sel(season_year=complete_index)
-    # Divide by four to get mean value
-    ds[varname] = ds[varname] / 4
+    # Divide by number of months to get mean value
+    ds[varname] = ds[varname] / n_months
     # Add lead time
     # [N.B. season_year (added automatically by Iris)
     # defines the year of final month in the season]
     ds['lead_time'] = (('season_year',), ds.season_year.values - int(init_year))
-    def _is_yr2to9(year): #, init_year):
+    def _is_yr2to9(year):
         return (year >= start_year) & (year <= end_year)
     ds = ds.sel(season_year=_is_yr2to9(ds['lead_time']))
-    # ds = ds.drop(['counter','lead_time'])
-    # ds = ds.mean('season_year')
-    return ds[varname]#.values
+    return ds[varname]
 
 
 def _get_variable_name(ds):
@@ -108,8 +122,78 @@ def _get_variable_name(ds):
         return 'european_precip'
     elif 'uk_precip' in varnames:
         return 'uk_precip'
+    elif 'uk_precip_field' in varnames:
+        return 'uk_precip_field'
     elif 'uk_temp' in varnames:
         return 'uk_temp'
+
+
+def _index_xarray_to_dataframe(x, varname, metadata):
+    df = x.to_dataframe()
+    df = df.rename(
+        {varname: 'value'}, axis="columns"
+    ).reset_index()
+    df['project'] = metadata['project']
+    df['source_id'] = metadata['model']
+    df['mip'] = metadata['mip']
+    df['experiment'] = metadata['experiment']
+    df['member'] = metadata['ensemble']
+    df['init_year'] = metadata['init_year']
+    df['variable'] = varname
+    df = df.sort_values(['init_year', 'season_year'])
+    cols = [
+        'project', 'source_id', 'mip', 'experiment',
+        'member', 'init_year', 'season_year', 'variable', 'value'
+    ]
+    df = df[cols]
+    return df
+
+
+def _spatial_xarray_to_dataframe(x, varname, metadata):
+    df = x.to_dataframe()
+    df = df[[varname]]
+    index_names = df.index.names
+    drop_index = [nm for nm in index_names if nm not in ['season_year'] + VALID_X_NAMES + VALID_Y_NAMES]
+    keep_index = [nm for nm in index_names if nm not in drop_index]
+    df = df.reset_index()
+    df = df.drop(drop_index, axis=1)
+    df = df.set_index(keep_index)
+    # df = xr.to_dataframe()[[xr.name]]
+    df = df.reset_index()
+    # df = df.rename({xr.name : 'var'}, axis=1)
+    # Check time index
+    # time_idx = [col for col in df if col in VALID_TIME_NAMES]
+    # df = df.rename({time_idx[0] : 'time'}, axis=1)
+    # Do we have spatial coordinates?
+    lon_idx = [col for col in df if col in VALID_X_NAMES]
+    lat_idx = [col for col in df if col in VALID_Y_NAMES]
+    if (len(lon_idx) == 1) & (len(lat_idx) == 1):
+        df = df.rename({lon_idx[0] : 'lon'}, axis=1)
+        df = df.rename({lat_idx[0] : 'lat'}, axis=1)
+        lats = ['N' + str(abs(x)) if x > 0 else 'S' + str(abs(x)) for x in df['lat']]
+        lons = ['E' + str(abs(x)) if x > 0 else 'W' + str(abs(x)) for x in df['lon']]
+        coords = [varname + '_' + lats[i] + '_' + lons[i] for i in range(len(lats))]
+        df['variable'] = coords
+        df = df.drop(['lat','lon'], axis=1)
+
+    df = df.rename(
+        {varname: 'value'}, axis="columns"
+    ).reset_index()
+    df['project'] = metadata['project']
+    df['source_id'] = metadata['model']
+    df['mip'] = metadata['mip']
+    df['experiment'] = metadata['experiment']
+    df['member'] = metadata['ensemble']
+    df['init_year'] = metadata['init_year']
+    # df['variable'] = varname
+
+    df = df.sort_values(['init_year', 'season_year'])
+    cols = [
+        'project', 'source_id', 'mip', 'experiment',
+        'member', 'init_year', 'season_year', 'variable', 'value'
+    ]
+    df = df[cols]
+    return df
 
 
 def _ensemble_preprocessor(inputdir, outputdir, config):
@@ -127,6 +211,11 @@ def _ensemble_preprocessor(inputdir, outputdir, config):
     recipe_output_dirs = \
         config['ensemble_data']['cmip5']['subdirectory'] \
         + config['ensemble_data']['cmip6']['subdirectory']
+
+    # ################################# #
+    # First handle DJFM indices
+    # ################################# #
+
     fs = []
     for recipe in recipe_output_dirs:
         datadir = os.path.join(rootdir, recipe)
@@ -153,97 +242,77 @@ def _ensemble_preprocessor(inputdir, outputdir, config):
             + glob.glob(uk_temp_datadir + "/*.nc")
         fs += recipe_fs
 
-    # Output directories
-    # decadal_output_path = os.path.join(
-    #     output_dir, 'ensemble-forecast-decadal'
-    # )
-    # try:
-    #     shutil.rmtree(decadal_output_path)
-    # except OSError:
-    #     pass
-    # annual_output_path = os.path.join(
-    #     output_dir, 'ensemble-forecast'
-    # )
-    # try:
-    #     shutil.rmtree(annual_output_path)
-    # except OSError:
-    #     pass
-
     # Process files, sorting them on the basis of the filename
-    data = []
     for i in tqdm(range(len(fs))):
-        f = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/esmvaltool_output/recipe_s20_cmip6_autogen_20221116_114454/work/nao/nao/CMIP6_NorCPM1_Amon_dcppA-hindcast_s2010-r9i2p1f1_psl_gn_2011-2019.nc'
+        # f = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/esmvaltool_output/recipe_s20_cmip6_autogen_20221116_114454/work/uk_precip/uk_precip/CMIP6_NorCPM1_Amon_dcppA-hindcast_s2010-r9i2p1f1_pr_gn_2011-2019.nc'
         f = fs[i]
-        meta = _parse_filepath(f)
+        metadata = _parse_filepath(f)
         ds = xarray.open_dataset(f)
         varname = _get_variable_name(ds)
-        val = _compute_mean_djfm(ds, varname, meta['init_year'])
-        # print(val.to_dataframe())
-        # rowdata = {
-        #     'project': meta['project'],
-        #     'source_id': meta['model'],
-        #     'mip': meta['mip'],
-        #     'experiment': meta['experiment'],
-        #     'member': meta['ensemble'],
-        #     'init_year': meta['init_year'],
-        #     'variable' : varname,
-        #     'value': val
-        # }
-        # rowdata = pd.DataFrame(rowdata)
-        # # rowdata = pd.DataFrame(rowdata, index=[i])
-        rowdata = val.to_dataframe()
-        rowdata = rowdata.rename(
-            {varname: 'value'}, axis="columns"
-        ).reset_index()
-        rowdata['project'] = meta['project']
-        rowdata['source_id'] = meta['model']
-        rowdata['mip'] = meta['mip']
-        rowdata['experiment'] = meta['experiment']
-        rowdata['member'] = meta['ensemble']
-        rowdata['init_year'] = meta['init_year']
-        rowdata['variable'] = varname
-
-        rowdata = rowdata.sort_values(['init_year', 'season_year'])
-        cols = [
-            'project', 'source_id', 'mip', 'experiment',
-            'member', 'init_year', 'season_year', 'variable', 'value'
-        ]
-        rowdata = rowdata[cols]
-        rowdata_tbl = pa.Table.from_pandas(
-            rowdata,
-            preserve_index=False
-        )
+        x = _compute_mean_season(ds, varname, metadata['init_year'])
+        df = _index_xarray_to_dataframe(x, varname, metadata)
+        tbl = pa.Table.from_pandas(df, preserve_index=False)
         pq.write_to_dataset(
-            rowdata_tbl,
+            tbl,
             root_path = os.path.join(outputdir, 'ensemble-forecast'),
             partition_cols = ['source_id', 'member', 'init_year', 'variable']
         )
-        # NOT USED
-        # # Take mean
-        # cols.remove('season_year')
-        # group_cols = cols[:]
-        # group_cols.remove('value')
-        # rowdata_mean = rowdata.groupby(group_cols).mean().reset_index()
-        # rowdata_mean = rowdata_mean[cols]
-        # rowdata_mean_tbl = pa.Table.from_pandas(
-        #     rowdata_mean,
-        #     preserve_index=False
-        # )
-        # pq.write_to_dataset(
-        #     rowdata_mean_tbl,
-        #     root_path=decadal_output_path,
-        #     partition_cols=['source_id', 'member', 'init_year', 'variable']
-        # )
+        # Antecedent conditions [only for prec and temp]
+        if varname in ['european_precip', 'uk_precip', 'uk_temp']:
+            try:
+                x = _compute_mean_season(
+                    ds, varname, metadata['init_year'], season=[9, 10, 11]
+                )
+            except ValueError:
+                continue
 
-    #     data.append(rowdata)
+            df = _index_xarray_to_dataframe(x, varname, metadata)
+            df['variable'] = [var + '_antecedent' for var in df['variable']]
+            tbl = pa.Table.from_pandas(df, preserve_index=False)
+            pq.write_to_dataset(
+                tbl,
+                root_path = os.path.join(outputdir, 'ensemble-forecast'),
+                partition_cols = ['source_id', 'member', 'init_year', 'variable']
+            )
 
-    # df = pd.concat(data)
-    # df = df.sort_values(
-    #     ['project', 'source_id', 'init_year', 'member'],
-    #     axis=0, ignore_index=True
-    # )
-    # table = pa.Table.from_pandas(df)
-    # pq.write_table(table, os.path.join(output_dir, 'ensemble.parquet'))
+    # Now handle variables with a spatial dimension
+    fs = []
+    for recipe in recipe_output_dirs:
+        datadir = os.path.join(rootdir, recipe)
+        uk_prec_field_datadir = os.path.join(
+            datadir,
+            'work/uk_precip_field/uk_precip_field'
+        )
+        recipe_fs = glob.glob(uk_prec_field_datadir + "/*.nc")
+        fs += recipe_fs
+
+    for i in tqdm(range(len(fs))):
+        # f = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/esmvaltool_output/recipe_s20_cmip6_autogen_20221116_114454/work/uk_precip_field/uk_precip_field/CMIP6_NorCPM1_Amon_dcppA-hindcast_s2010-r9i2p1f1_pr_gn_2011-2019.nc'
+        f = fs[i]
+        metadata = _parse_filepath(f)
+        ds = xarray.open_dataset(f)
+        varname = _get_variable_name(ds)
+        x = _compute_mean_season(ds, varname, metadata['init_year'])
+        df = _spatial_xarray_to_dataframe(x, varname, metadata)
+        tbl = pa.Table.from_pandas(df, preserve_index=False)
+        pq.write_to_dataset(
+            tbl,
+            root_path = os.path.join(outputdir, 'ensemble-forecast'),
+            partition_cols = ['source_id', 'member', 'init_year', 'variable']
+        )
+        # Antecedent conditions [only for prec and temp]
+        if varname in ['uk_precip_field']:
+            x = _compute_mean_season(
+                ds, varname, metadata['init_year'], season=[9, 10, 11]
+            )
+            df = _spatial_xarray_to_dataframe(x, varname, metadata)
+            df['variable'] = [var + '_antecedent' for var in df['variable']]
+            tbl = pa.Table.from_pandas(df, preserve_index=False)
+            pq.write_to_dataset(
+                tbl,
+                root_path = os.path.join(outputdir, 'ensemble-forecast'),
+                partition_cols = ['source_id', 'member', 'init_year', 'variable']
+            )
 
 
 def _coord_names(x):
@@ -275,8 +344,8 @@ def _has_positive_longitude(x):
     lon_name = _get_longitude_name(x)
     lon = x.coord(lon_name).points
     positive_lon = np.all(lon >= 0)
-
     return positive_lon
+
 
 def _transform_longitude(xmin, xmax, positive_lon):
     # Transform standard (-180 to 180) longitude
@@ -302,9 +371,15 @@ def _regrid_cube(source, target):
     for coord_nm in [target_lat_name, target_lon_name]:
         source.coord(coord_nm).coord_system = target.coord(coord_nm).coord_system
 
+    # source.coord(source_lat_name).attributes.pop('actual_range')
+    # target.coord(target_lat_name).attributes.pop('actual_range')
+    # source.coord(source_lon_name).attributes.pop('actual_range')
+    # target.coord(target_lon_name).attributes.pop('actual_range')
+
     # Perform the regridding
     regrid_source = source.regrid(target, iris.analysis.Linear())
     return regrid_source
+
 
 def _extract_subgrid(x, xmin, xmax, ymin, ymax):
     x_copy = x.copy()
@@ -314,13 +389,18 @@ def _extract_subgrid(x, xmin, xmax, ymin, ymax):
         x_copy.coord(lon_name).guess_bounds()
     if (x_copy.coord(lat_name).bounds is None):
         x_copy.coord(lat_name).guess_bounds()
-    positive_lon = _has_positive_longitude(x_copy)
-    xmin, xmax = _transform_longitude(xmin, xmax, positive_lon)
+    # positive_lon = _has_positive_longitude(x_copy)
+    # xmin, xmax = _transform_longitude(xmin, xmax, positive_lon)
     box = x_copy.intersection(
         longitude=(xmin, xmax),
         latitude=(ymin, ymax)
     )
     return box
+
+# def _extract_field(x, xmin, xmax, ymin, ymax):
+#     x_copy = x.copy()
+#     subset = x_copy.intersection(longitude=(xmin, xmax), latitude=(ymin, ymax))
+#     return subset
 
 def _extract_ts(x, xmin, xmax, ymin, ymax):
     # # work on a copy
@@ -419,6 +499,10 @@ def _extract_european_precip_ts(x):
 def _extract_uk_precip_ts(x):
     uk_prec = _extract_ts(x, -8, 2, 50, 59)
     return uk_prec
+
+def _extract_uk_precip_field(x):
+    uk_precip_field = _extract_subgrid(x, -8, 2, 50, 59)
+    return uk_precip_field
 
 def _extract_uk_temp_ts(x):
     uk_temp = _extract_ts(x, -8, 2, 50, 59)
@@ -539,6 +623,8 @@ def _extract_index(ds, index_name, column_name = None):
         ds_index = _extract_european_precip_ts(ds)
     elif index_name == "uk_precip":
         ds_index = _extract_uk_precip_ts(ds)
+    elif index_name == "uk_precip_field":
+        ds_index = _extract_uk_precip_field(ds)
     elif index_name == "uk_temp":
         ds_index = _extract_uk_temp_ts(ds)
     elif index_name == "atlantic":
@@ -551,12 +637,41 @@ def _extract_index(ds, index_name, column_name = None):
     if column_name is None:
         column_name = index_name
 
-    # Convert to data frame
-    df = iris.pandas.as_data_frame(ds_index)
-    df = df.rename(columns={0 : column_name})
-    df.index.name = 'time'
-    df = df.reset_index(level='time')
-    tm = df['time'].values
+    # Alternative to below
+    xr = xarray.DataArray.from_iris(ds_index)
+    xr.name = column_name
+    df = xr.to_dataframe()
+    time_idx = [col for col in df if col in VALID_TIME_NAMES]
+    if len(time_idx) > 0:
+        df = df.set_index(time_idx[0], append=True)
+    df = df[[column_name]]
+    index_names = df.index.names
+    drop_index = [nm for nm in index_names if nm not in VALID_TIME_NAMES + VALID_X_NAMES + VALID_Y_NAMES]
+    keep_index = [nm for nm in index_names if nm not in drop_index]
+    df = df.reset_index()
+    df = df.drop(drop_index, axis=1)
+    df = df.set_index(keep_index)
+
+    # df = xr.to_dataframe()[[xr.name]]
+    df = df.reset_index()
+    # df = df.rename({xr.name : 'var'}, axis=1)
+    # Check time index
+    time_idx = [col for col in df if col in VALID_TIME_NAMES]
+    df = df.rename({time_idx[0] : 'time'}, axis=1)
+    # Do we have spatial coordinates?
+    lon_idx = [col for col in df if col in VALID_X_NAMES]
+    lat_idx = [col for col in df if col in VALID_Y_NAMES]
+    if (len(lon_idx) == 1) & (len(lat_idx) == 1):
+        df = df.rename({lon_idx[0] : 'lon'}, axis=1)
+        df = df.rename({lat_idx[0] : 'lat'}, axis=1)
+        lats = ['N' + str(abs(x)) if x > 0 else 'S' + str(abs(x)) for x in df['lat']]
+        lons = ['E' + str(abs(x)) if x > 0 else 'W' + str(abs(x)) for x in df['lon']]
+        coords = [xr.name + '_' + lats[i] + '_' + lons[i] for i in range(len(lats))]
+        df['coord'] = coords
+        df = df.pivot(index='time', columns=['coord'], values=xr.name)
+        df = df.reset_index()
+
+    tm = df['time'].dt.to_pydatetime()
     df['year'] = [tm.year for tm in tm]
     df['month'] = [tm.month for tm in tm]
     df = df.drop('time', axis=1)
@@ -564,16 +679,39 @@ def _extract_index(ds, index_name, column_name = None):
     _, idx = np.unique(tm, return_index = True)
     df = df.iloc[idx]
     df.reset_index()
+
+    # # Convert to data frame
+    # df = iris.pandas.as_data_frame(ds_index)
+    # df = df.rename(columns={0 : column_name})
+    # df.index.name = 'time'
+    # df = df.reset_index(level='time')
+    # tm = df['time'].values
+    # df['year'] = [tm.year for tm in tm]
+    # df['month'] = [tm.month for tm in tm]
+    # df = df.drop('time', axis=1)
+    # # Check for any duplicated values which we have to remove
+    # _, idx = np.unique(tm, return_index = True)
+    # df = df.iloc[idx]
+    # df.reset_index()
+
     return df
 
-# def _observed_preprocessor(config, outputdir):
 def _observed_preprocessor(inputdir, outputdir, config):
     with open(config, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
-    # observed_root = config['input_data_root']
     observed_root = inputdir
-    print(observed_root)
+    # TESTING
+    observed_root = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data'
+    config = {
+        'observed_data' : {
+            'hadslp2r' : {'subdirectory' : 'HadSLP2r'},
+            'gpcc' : {'subdirectory' : 'GPCC'},
+            'hadcrut4' : {'subdirectory' : 'HadCRUT4'},
+            'hadisst' : {'subdirectory' : 'HadISST'},
+            'giss' : {'subdirectory' : 'GISS'},
+            'ncdc' : {'subdirectory' : 'NCDC'}}}
+
     hadslp2r_filename = os.path.join(
         observed_root,
         config['observed_data']['hadslp2r']['subdirectory'],
@@ -651,6 +789,34 @@ def _observed_preprocessor(inputdir, outputdir, config):
     uk_precip_df['uk_precip'] /= uk_precip_df['days_in_month']
     uk_precip_df = uk_precip_df.drop('days_in_month', axis=1)
 
+    # ################# #
+    # UK rainfall field
+    # ################# #
+    # import iris
+    # gpcc_filename = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data/GPCC/precip.mon.total.2.5x2.5.v2018.nc'
+    source = iris.load_cube(gpcc_filename, 'precip')
+    # target = iris.load_cube(hadslp2r_filename, 'slp')
+    # from esmvalcore import *
+    target = regional_stock_cube({
+        'start_longitude': 0,
+        'end_longitude': 355,
+        'step_longitude': 5,
+        'start_latitude': 90,
+        'end_latitude': -90,
+        'step_latitude': -5
+    })
+    ds_regrid = _regrid_cube(source, target)
+    # xr = xarray.DataArray.from_iris(ds_regrid)
+    # xr.to_netcdf("../../test.nc")
+    uk_precip_field_df = _extract_index(ds_regrid, 'uk_precip_field')
+    uk_precip_field_df['days_in_month'] = uk_precip_field_df.apply(
+        lambda x: monthrange(int(x['year']), int(x['month']))[1],
+        axis=1
+    )
+    cols = [nm for nm in uk_precip_field_df if nm.startswith('uk_precip_field')]
+    for col in cols:
+        uk_precip_field_df[col] /= uk_precip_field_df['days_in_month']
+
     # # ################### #
     # # Gridded UK rainfall #
     # # ################### #
@@ -721,15 +887,16 @@ def _observed_preprocessor(inputdir, outputdir, config):
     # Now merge all time series
     obs_df = reduce(
         lambda left, right: pd.merge(left, right),
-        [temp_df, nao_df, ea_df, europe_precip_df, uk_precip_df]
+        [temp_df, nao_df, ea_df, europe_precip_df, uk_precip_df, uk_precip_field_df]
     )
-    obs_df = obs_df[['year','month','nao','ea','amv','european_precip','uk_precip','uk_temp']]
+    obs_df = obs_df[['year','month','nao','ea','amv','european_precip','uk_precip','uk_temp'] + [nm for nm in uk_precip_field_df if nm.startswith('uk_precip_field')]]
     # Pivot to long format
     obs_df = obs_df.reset_index()
     obs_df = pd.melt(
         obs_df,
         id_vars=['year', 'month'],
-        value_vars=['nao', 'ea', 'amv','european_precip', 'uk_precip', 'uk_temp']
+        # value_vars=['nao', 'ea', 'amv','european_precip', 'uk_precip', 'uk_temp']
+        value_vars=[nm for nm in obs_df if nm not in ['year', 'month', 'index']]
     )
     table = pa.Table.from_pandas(obs_df)
     # Save dataset
