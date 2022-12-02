@@ -21,14 +21,14 @@ options(bitmapType = "cairo")
 options(dplyr.summarise.inform = FALSE)
 
 ## ## TESTING
-## config = read_yaml('config/config_1.yml')
+## config = read_yaml('config/config_2.yml')
 ## obspath = 'results/intermediate/obs.parquet'
 ## fcstpath = 'results/intermediate/ensemble-forecast'
 ## aggr_period = 'yr2to9_lag'
-## outputroot = 'results/exp1/analysis'
+## outputroot = 'results/exp2/analysis'
 ## cwd = 'workflow/scripts'
 
-## Extract configuration info
+## extract configuration info
 if (sys.nframe() == 0L) {
   args = commandArgs(trailingOnly=TRUE)
   config = read_yaml(args[1])
@@ -154,12 +154,13 @@ if (period$hindcast) {
         align="right"
       )
     )
-
+  ## stop()
   ## Standardise (i.e. divide by standard deviation)
   fcst =
     fcst %>%
     mutate(
-      obs_std = obs / sd(obs),
+      obs_std = obs / sd(obs, na.rm=TRUE), # FIXME
+      ## obs_std = obs / sd(obs), # FIXME
       ens_mean_lag_std = ens_mean_lag / sd(ens_mean_lag, na.rm=TRUE),
       ens_mean_std = ens_mean / sd(ens_mean_lag, na.rm=TRUE)
     )
@@ -177,6 +178,8 @@ if (period$hindcast) {
   ## Multiply by ACC (Note that standardising
   ## and multiplying by ACC is equivalent to
   ## multiplying by RPS)
+  ##
+  ## FIXME - for time periods for which no observations are available we can compute the RPS using the complete
   fcst =
     fcst %>%
     mutate(
@@ -224,6 +227,7 @@ if (period$hindcast) {
       ensemble_fcst %>% rename(init_year_matched = init_year),
       by = c("project", "source_id", "mip", "member", "init_year_matched")
     )
+
   write_parquet(
     nao_matched_ensemble_fcst,
     file.path(outputdir, "matched_ensemble.parquet")

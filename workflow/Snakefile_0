@@ -8,6 +8,12 @@ INTERMEDIATE_DIRECTORY = os.path.join(RESULTS_DIRECTORY, 'intermediate')
 OBSERVED_DATA_FILE = os.path.join(INTERMEDIATE_DIRECTORY, 'obs.parquet')
 ENSEMBLE_FORECAST_DATA_DIRECTORY = os.path.join(INTERMEDIATE_DIRECTORY, 'ensemble-forecast')
 
+
+# rule all:
+#     input:
+#         OBSERVED_DATA_FILE,
+#         ENSEMBLE_FORECAST_DATA_DIRECTORY
+
 rule obs_input:
     input:
         script='workflow/scripts/prepare-observed-input-data.py',

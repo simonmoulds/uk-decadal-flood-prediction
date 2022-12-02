@@ -702,15 +702,15 @@ def _observed_preprocessor(inputdir, outputdir, config):
 
     observed_root = inputdir
     # TESTING
-    observed_root = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data'
+    # observed_root = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data'
     config = {
-        'observed_data' : {
-            'hadslp2r' : {'subdirectory' : 'HadSLP2r'},
-            'gpcc' : {'subdirectory' : 'GPCC'},
-            'hadcrut4' : {'subdirectory' : 'HadCRUT4'},
-            'hadisst' : {'subdirectory' : 'HadISST'},
-            'giss' : {'subdirectory' : 'GISS'},
-            'ncdc' : {'subdirectory' : 'NCDC'}}}
+        'observed_data': {
+            'hadslp2r': {'subdirectory': 'HadSLP2r'},
+            'gpcc': {'subdirectory': 'GPCC'},
+            'hadcrut4': {'subdirectory': 'HadCRUT4'},
+            'hadisst': {'subdirectory': 'HadISST'},
+            'giss': {'subdirectory': 'GISS'},
+            'ncdc': {'subdirectory': 'NCDC'}}}
 
     hadslp2r_filename = os.path.join(
         observed_root,
@@ -886,7 +886,7 @@ def _observed_preprocessor(inputdir, outputdir, config):
 
     # Now merge all time series
     obs_df = reduce(
-        lambda left, right: pd.merge(left, right),
+        lambda left, right: pd.merge(left, right, how='outer'),
         [temp_df, nao_df, ea_df, europe_precip_df, uk_precip_df, uk_precip_field_df]
     )
     obs_df = obs_df[['year','month','nao','ea','amv','european_precip','uk_precip','uk_temp'] + [nm for nm in uk_precip_field_df if nm.startswith('uk_precip_field')]]

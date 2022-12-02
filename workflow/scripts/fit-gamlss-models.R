@@ -12,11 +12,11 @@ library(optparse)
 options(dplyr.summarise.inform = FALSE)
 
 ## ## FOR TESTING:
-## config = read_yaml('config/config_1.yml')
-## experiment = 'observed'
-## aggregation_period = 'yr2'
+## config = read_yaml('config/config_2.yml')
+## experiment = 'hindcast_QMAX'
+## aggregation_period = 'yr2' #to5_lag'
 ## method = 'forward'
-## outputroot = 'results/exp1'
+## outputroot = 'results/exp2'
 ## cwd = 'workflow/scripts/'
 
 if (sys.nframe() == 0L) {
@@ -91,7 +91,6 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
   station_ids = ds$ID %>% unique() %>% sort()
   pb = txtProgressBar(min=0, max=length(station_ids), initial=0, title=pb_title)
   for (k in 1:length(station_ids)) {
-
     ## ############################### ##
     ## Prepare input data
     ## ############################### ##
@@ -114,7 +113,6 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
       msg <- paste0("Model family ", experiment_conf$model_family, " currently not supported")
       stop(msg)
     }
-
     ## If more than 33% of data points are missing then do not model this catchment
     if (sum(exclude) > (length(exclude) * 0.33)) {
       next
@@ -128,7 +126,6 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
       subset = subsets[m]
       catchment_data_list[[m]] = x %>% filter(subset %in% subsets[m])
     }
-
     ## ############################### ##
     ## Fit models
     ## ############################### ##
@@ -171,7 +168,7 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
           experiment_conf,
           training_period_start = 1961,
           training_period_end = 1979,
-          test_period_end = 2006,
+          test_period_end = 2015, #06, # FIXME
           lead_time
         )
         catchment_prediction <- out$prediction

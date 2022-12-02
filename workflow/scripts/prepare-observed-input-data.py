@@ -4,7 +4,6 @@ import click
 
 from utils import _observed_preprocessor
 
-
 @click.command()
 @click.option('-i', '--inputdir', default='.', help='Input directory')
 @click.option('-o', '--outputdir', default='.', help='Output directory')

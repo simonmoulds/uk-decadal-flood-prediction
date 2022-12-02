@@ -11,10 +11,10 @@ library(yaml)
 options(dplyr.summarise.inform = FALSE)
 
 ## ## TESTING
-## config = read_yaml("config/config_1.yml")
+## config = read_yaml("config/config_2.yml")
 ## obspath = "results/intermediate/obs.parquet"
-## aggr_period = "yr2"
-## outputroot = "results/exp1"
+## aggr_period = "yr2to5"
+## outputroot = "results/exp2"
 ## cwd = "workflow/scripts"
 
 if (sys.nframe() == 0L) {
@@ -152,7 +152,7 @@ for (i in 1:n_stations) {
     mutate(missing_pct = ifelse(is.na(missing_pct), 100, missing_pct))
 
   ## Save observed data (observed discharge + observed climate indices)
-  standardize = function(x) return((x - mean(x)) / sd(x))
+  standardize = function(x) return((x - mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE))
   obs_aggregated =
     obs_local %>%
     group_by(variable) %>%

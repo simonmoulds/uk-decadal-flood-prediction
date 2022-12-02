@@ -469,6 +469,12 @@ corr_cross_validate <- function(fcst, obs, leave_out_add=0) {
       corr[i] = unname(corr_this$estimate)
     }
   }
+  ## ## EXPERIMENTAL
+  ## na_index = which(is.na(obs))
+  ## if (length(na_index) > 0) {
+  ##   corr_this = try(cor.test(fcst, obs, method="pearson", alternative="greater"))
+  ##   corr[na_index] = corr_this
+  ## }
   corr
 }
 
@@ -589,14 +595,14 @@ select_nearest_grid_cell <- function(lat, lon, grid_coords) {
 }
 
 create_ensemble_forecast <- function(ensemble_fcst_error,
-                                    ensemble_fcst,
-                                    vars,
-                                    model_select = NA,
-                                    project_select = NA,
-                                    full = TRUE,
-                                    best_n = FALSE,
-                                    worst_n = FALSE,
-                                    n_select = 20) {
+                                     ensemble_fcst,
+                                     vars,
+                                     model_select = NA,
+                                     project_select = NA,
+                                     full = TRUE,
+                                     best_n = FALSE,
+                                     worst_n = FALSE,
+                                     n_select = 20) {
 
   ## Filter by models
   models = ensemble_fcst$source_id %>% unique() %>% toupper()
@@ -913,7 +919,8 @@ fit_models_forward_chain <- function(x,
     test_data <- x %>% filter(year %in% test_year)
 
     ## Only continue if there is sufficient training/testing data
-    if (nrow(train_data) == 0 | nrow(test_data) == 0) {
+    ## if (nrow(train_data) == 0 | nrow(test_data) == 0) {
+    if (nrow(train_data) < 10 | nrow(test_data) == 0) {
       training_period_end <- training_period_end + 1
       next
     }
