@@ -12,7 +12,9 @@ EXPM = ['hindcast_QMAX', 'hindcast_Q95', 'observed_QMAX', 'observed_Q95']
 EXP2_DIRECTORY = os.path.join(RESULTS_DIRECTORY, 'exp2')
 STATIONS_FILE = os.path.join(EXP2_DIRECTORY, 'stations.txt')
 NRFA_DISCHARGE_DIRECTORY = os.path.join(EXP2_DIRECTORY, 'nrfa-discharge-summaries')
+GRDC_DISCHARGE_DIRECTORY = os.path.join(EXP2_DIRECTORY, 'grdc-discharge-summaries')
 NRFA_METADATA_FILE = os.path.join(EXP2_DIRECTORY, 'nrfa-metadata.parquet')
+GRDC_METADATA_FILE = os.path.join(EXP2_DIRECTORY, 'grdc-metadata.parquet')
 ANALYSIS_DIRECTORY = os.path.join(EXP2_DIRECTORY, 'analysis')
 
 rule all:
@@ -39,7 +41,7 @@ rule select_stations:
         Rscript {input.script} {config[input_data_root]} {params.outfile} {input.config}
         """
 
-rule get_discharge_data:
+rule get_nrfa_discharge_data:
     input:
         stations=STATIONS_FILE,
         script='workflow/scripts/download-discharge-data.R'
@@ -55,6 +57,24 @@ rule get_discharge_data:
     shell:
         """
         Rscript {input.script} {input.stations} {params.outputdir}
+        """
+
+rule get_grdc_discharge_data:
+    input:
+        datadir=GRDC_DATADIR,
+        script='workflow/scripts/process-grdc-data.R'
+    output:
+        directory(GRDC_DISCHARGE_DIRECTORY),
+        GRDC_METADATA_FILE
+    params:
+        outputdir=EXP2_DIRECTORY
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
+    shell:
+        """
+        Rscript {input.script} {input.datadir} {params.outputdir}
         """
 
 rule nao_matching:

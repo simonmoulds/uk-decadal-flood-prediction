@@ -78,6 +78,18 @@ obs_aggregation_period_label = aggregation_period_label
 ## ####################################################### ##
 ## ####################################################### ##
 
+## In this analysis we have many different models, so we need to load data slighly differently
+models <- sapply(config$modelling, FUN=function(x) x$name)
+predictand <- sapply(config$modelling, FUN=function(x) x$predictand)
+aggregation_period <- sapply(config$modelling, FUN=function(x) x$aggregation_period)
+
+all_skill_scores <- list()
+for (i in 1:length(models)) {
+  x <- load_skill_scores(config, models[i], aggregation_period[i])
+  x <- x %>% mutate(experiment = models[i])
+  all_skill_scores[[i]] <- x
+}
+
 obs_depvar = "Q_95_centred_obs"
 exp_depvar = "Q_95_centred_exp"
 obs_expm = "observed_Q95"
@@ -91,6 +103,8 @@ exp_expm = "hindcast_Q95"
 obs_skill_scores <- load_skill_scores(config, obs_expm, obs_aggregation_period)
 skill_scores <- load_skill_scores(config, exp_expm, aggregation_period)
 station_ids <- skill_scores$ID %>% unique()
+
+stop()
 
 ## ## Load model fit metrics for hindcast experiment
 ## fit <- load_model_fit(config, "hindcast", aggregation_period) %>% mutate(kurtosis = kurtosis - 3)
@@ -438,7 +452,6 @@ p <- myplotfun1(skill, "R")
 ## p1 <- p1 + labs(title="DJFM QMAX") + theme(plot.title = element_text(size = 8, margin = margin(0,0,1,0, unit="pt")))
 ## p2 <- p2 + labs(title="DJFM Q95") + theme(plot.title = element_text(size = 8, margin = margin(0,0,1,0, unit="pt")))
 ## p <- p1 + p2 + plot_layout(ncol=2) + plot_layout(guides="collect") & theme(legend.position = "bottom")
-
 ## ggsave("results/exp2/fig/yr2/fig_map.png", width=5, height=5, units="in")
 
 stop()

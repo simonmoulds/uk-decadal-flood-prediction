@@ -11,25 +11,25 @@ library(optparse)
 
 options(dplyr.summarise.inform = FALSE)
 
-## ## FOR TESTING:
-## config = read_yaml('config/config_2.yml')
-## experiment = 'hindcast_QMAX'
-## aggregation_period = 'yr2' #to5_lag'
-## method = 'forward'
-## outputroot = 'results/exp2'
-## cwd = 'workflow/scripts/'
+## FOR TESTING:
+config = read_yaml('config/config_2.yml')
+experiment = 'hindcast_POT'
+aggregation_period = 'yr2' #to5_lag'
+method = 'forward'
+outputroot = 'results/exp2'
+cwd = 'workflow/scripts/'
 
-if (sys.nframe() == 0L) {
-  args = commandArgs(trailingOnly=TRUE)
-  config = read_yaml(args[1])
-  experiment = args[2]
-  aggregation_period = args[3]
-  method = args[4]
-  outputroot = args[5]
-  args = commandArgs()
-  m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
-  cwd <- dirname(regmatches(args, m))
-}
+## if (sys.nframe() == 0L) {
+##   args = commandArgs(trailingOnly=TRUE)
+##   config = read_yaml(args[1])
+##   experiment = args[2]
+##   aggregation_period = args[3]
+##   method = args[4]
+##   outputroot = args[5]
+##   args = commandArgs()
+##   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
+##   cwd <- dirname(regmatches(args, m))
+## }
 source(file.path(cwd, "utils.R"))
 
 ## Only parse the sections we need here
@@ -91,6 +91,7 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
   station_ids = ds$ID %>% unique() %>% sort()
   pb = txtProgressBar(min=0, max=length(station_ids), initial=0, title=pb_title)
   for (k in 1:length(station_ids)) {
+
     ## ############################### ##
     ## Prepare input data
     ## ############################### ##
@@ -98,18 +99,23 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
     catchment_data =
       ds %>%
       filter(ID %in% stn_id & year %in% experiment_conf$study_period)
-    ## Normalize discharge
-    catchment_area = metadata[["catchment-area"]][metadata$id %in% stn_id] # km2
-    catchment_data =
-      catchment_data %>%
-      mutate(Q = Q * 24 * 60 * 60 / catchment_area / 1000 / 1000 * 1000) # m3/s -> mm/day
+
+    ## Normalize discharge if continuous distribution
+    if (!experiment_conf$model_family == "PO") {
+      catchment_area = metadata[["catchment-area"]][metadata$id %in% stn_id] # km2
+      catchment_data =
+        catchment_data %>%
+        mutate(Q = Q * 24 * 60 * 60 / catchment_area / 1000 / 1000 * 1000) # m3/s -> mm/day
+    }
 
     ## Handle missing data
     exclude = catchment_data$missing_pct > 30 | !complete.cases(catchment_data)
     if (experiment_conf$model_family == "GA") {
       ## Cannot fit a Gamma distribution if the response variable contains zeroes
       exclude = exclude | (catchment_data[[experiment_conf$predictand]] == 0.)
-    } else {
+    }
+
+    if (!experiment_conf$model_family %in% c("GA", "PO")) {
       msg <- paste0("Model family ", experiment_conf$model_family, " currently not supported")
       stop(msg)
     }

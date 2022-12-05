@@ -139,10 +139,28 @@ modelling:
       - best_n
       # - cmip5
       # - cmip6
-  - name: hindcast_QMAX
+  # - name: hindcast_QMAX
+  #   input_dataset: hindcast-analysis
+  #   predictand: Q_max_centred
+  #   model_family: GA
+  #   aggregation_periods:
+  #     - yr2
+  #   study_period: 1960:2015
+  #   formulas:
+  #     P: Q ~ european_precip
+  #     P_T: Q ~ european_precip + amv
+  #     P_T_antP: Q ~ european_precip + amv + european_precip_antecedent
+  #     P_T_antP_local: Q ~ uk_precip_field + amv + uk_precip_field_antecedent
+  #     P_T_antP_nao_local: Q ~ uk_precip_field + amv + nao + uk_precip_field_antecedent
+  #   subsets:
+  #     - full
+  #     - best_n
+  #     # - cmip5
+  #     # - cmip6
+  - name: hindcast_POT
     input_dataset: hindcast-analysis
-    predictand: Q_max_centred
-    model_family: GA
+    predictand: POT_1_centred
+    model_family: PO
     aggregation_periods:
       - yr2
     study_period: 1960:2015
@@ -174,10 +192,27 @@ modelling:
       P_T_antP_nao_local: Q ~ uk_precip_field + amv + nao + uk_precip_field_antecedent
     subsets:
       - observed
-  - name: observed_QMAX
+  # - name: observed_QMAX
+  #   input_dataset: observed-analysis
+  #   predictand: Q_max_centred
+  #   model_family: GA
+  #   aggregation_periods:
+  #     - yr2
+  #   study_period: 1960:2015
+  #   formulas:
+  #     # STATIONARY: Q ~ 1
+  #     # TIME: Q ~ year
+  #     P: Q ~ european_precip
+  #     P_T: Q ~ european_precip + amv
+  #     P_T_antP: Q ~ european_precip + amv + european_precip_antecedent
+  #     P_T_antP_local: Q ~ uk_precip_field + amv + uk_precip_field_antecedent
+  #     P_T_antP_nao_local: Q ~ uk_precip_field + amv + nao + uk_precip_field_antecedent
+  #   subsets:
+  #     - observed
+  - name: observed_POT
     input_dataset: observed-analysis
-    predictand: Q_max_centred
-    model_family: GA
+    predictand: POT_1_centred
+    model_family: PO
     aggregation_periods:
       - yr2
     study_period: 1960:2015

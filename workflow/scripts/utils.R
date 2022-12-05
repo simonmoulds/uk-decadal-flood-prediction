@@ -294,15 +294,96 @@ get_hindcast_data <- function(dataset, study_period, lead_times) {
   ensemble_fcst_raw_complete
 }
 
+summarise_discharge_data <- function(x, metadata) {
+
+  ## ## Previous POT analysis
+  ## ## Neri et al [https://doi.org/10.1002/joc.5915]:
+  ## ## "To avoid double counting the same event, we only consider
+  ## ## one event in a window of +/- 5 days + logarithm of the
+  ## ## drainage area"
+  ## catchment_area = metadata[["catchment_area"]]
+  ## window_size = ((5 + log(catchment_area * 0.386102)) * 2) %>% round()
+  ## ## Solari et al [https://doi.org/10.1002/2016WR019426]:
+  ## ## "As the moving window travels through the series, each
+  ## ## time that the data maximum in the window is located at
+  ## ## its center, the maximum is regarded as a peak"
+  ## df =
+  ##   df %>% # Neri et al
+  ##   mutate(pot = roll_max(gdf, n=window_size, align="center", fill=NA)) %>%
+  ##   mutate(is_peak = Vectorize(isTRUE)(pot == gdf)) %>%
+  ##   mutate(peak = ifelse(is_peak, pot, NA))
+  ## ## Unsure whether we need to make this unique or not?
+  ## peaks = df$pot[df$is_peak] ##%>% unique()
+  ## n_years = length(df$year %>% unique())
+  ## peaks_sorted = sort(peaks, decreasing = TRUE)
+  ## threshold_1 = peaks_sorted[n_years]
+  ## threshold_2 = peaks_sorted[n_years * 2]
+  ## threshold_3 = peaks_sorted[n_years * 3]
+  ## threshold_4 = peaks_sorted[n_years * 4]
+
+  ## df =
+  ##   df %>%
+  ##   mutate(pot_1 = ifelse(Vectorize(isTRUE)(peak >= threshold_1), 1, 0)) %>%
+  ##   mutate(pot_2 = ifelse(Vectorize(isTRUE)(peak >= threshold_2), 1, 0)) %>%
+  ##   mutate(pot_3 = ifelse(Vectorize(isTRUE)(peak >= threshold_3), 1, 0)) %>%
+  ##   mutate(pot_4 = ifelse(Vectorize(isTRUE)(peak >= threshold_4), 1, 0))
+
+  ## Add climate season label to rows
+  x <- x %>%
+    mutate(
+      clim_season = case_when(
+        month %in% c(12, 1, 2, 3) ~ "DJFM",
+        month %in% c(4, 5) ~ "AM",
+        month %in% c(6, 7, 8, 9) ~ "JJAS",
+        month %in% c(10, 11) ~ "ON"
+      )
+    ) %>%
+    mutate(season_year = ifelse(month %in% c(1, 2, 3), year - 1, year))
+
+  ## Quantiles per season
+  thresholds <- x %>%
+    group_by(ID, clim_season) %>%
+    summarize(
+      Q_99_threshold = quantile(Q, 0.99, na.rm = TRUE),
+      Q_95_threshold = quantile(Q, 0.95, na.rm = TRUE)
+    )
+
+  x <- x %>% left_join(thresholds, by=c("ID", "clim_season"))
+
+  ## Summarize to get flood counts
+  x <- x %>%
+    group_by(ID, clim_season, season_year) %>%
+    summarize(
+      missing_pct = (sum(is.na(Q)) / n()) * 100,
+      Q_max = max(Q, na.rm = TRUE),
+      Q_mean = mean(Q, na.rm = TRUE),
+      Q_05 = quantile(Q, probs = 0.05, na.rm = TRUE, names = FALSE),
+      Q_50 = quantile(Q, probs = 0.50, na.rm = TRUE, names = FALSE),
+      Q_90 = quantile(Q, probs = 0.90, na.rm = TRUE, names = FALSE),
+      Q_95 = quantile(Q, probs = 0.95, na.rm = TRUE, names = FALSE),
+      ## P_sum = sum(cdr, na.rm = TRUE),
+      ## POT_1 = sum(pot_1, na.rm = TRUE),
+      ## POT_2 = sum(pot_2, na.rm = TRUE),
+      ## POT_3 = sum(pot_3, na.rm = TRUE),
+      ## POT_4 = sum(pot_4, na.rm = TRUE),
+      POT_1 = sum(Q > Q_99_threshold, na.rm = TRUE),
+      POT_2 = sum(Q > Q_95_threshold, na.rm = TRUE)
+    ) %>%
+    ungroup() %>%
+    mutate(across(Q_max:POT_2, ~ifelse(is.finite(.), ., NA)))
+    ## mutate(across(Q_max:POT_4, ~ifelse(is.finite(.), ., NA)))
+  x
+}
+
 download_nrfa_data <- function(stn_id, metadata) {
   ## TODO tidy up this function, giving user more control over which variables are derived
   meta = metadata %>% filter(id %in% stn_id)
   ## Gauged daily flow [m3 s-1]
   gdf = get_ts(stn_id, "gdf") %>% as_tibble(rownames="time")
-  ## Catchent daily rainfall [mm]
-  cdr = try(get_ts(stn_id, "cdr") %>% as_tibble(rownames="time"))
-  if (inherits(cdr, "try-error"))
-    cdr <- gdf %>% rename(cdr = gdf) %>% mutate(cdr = NA)
+  ## ## Catchent daily rainfall [mm]
+  ## cdr = try(get_ts(stn_id, "cdr") %>% as_tibble(rownames="time"))
+  ## if (inherits(cdr, "try-error"))
+  ##   cdr <- gdf %>% rename(cdr = gdf) %>% mutate(cdr = NA)
 
   ## Create complete time series, in case the
   ## raw time series has missing values.
@@ -317,80 +398,18 @@ download_nrfa_data <- function(stn_id, metadata) {
     tibble(time = complete_ts) %>%
     left_join(gdf, by="time")
   availability = sum(!is.na(gdf$gdf)) / nrow(gdf) * 100
-  df =
-    gdf %>%
-    left_join(cdr, by="time") %>%
+  x <- gdf %>%
+    rename(Q = gdf) %>%
+    ## left_join(cdr, by="time") %>%
     mutate(ID=stn_id, .after=time) %>%
     mutate(time = as.Date(time))
   ## TODO Filter out years with fewer than 330 days of records
-  df =
-    df %>%
+  x <- x %>%
     mutate(year = format(time, "%Y") %>% as.integer) %>%
     mutate(month = format(time, "%m") %>% as.integer)
-  ## Neri et al [https://doi.org/10.1002/joc.5915]:
-  ## "To avoid double counting the same event, we only consider
-  ## one event in a window of +/- 5 days + logarithm of the
-  ## drainage area"
-  catchment_area = meta[["catchment_area"]]
-  window_size = ((5 + log(catchment_area * 0.386102)) * 2) %>% round()
-  ## Solari et al [https://doi.org/10.1002/2016WR019426]:
-  ## "As the moving window travels through the series, each
-  ## time that the data maximum in the window is located at
-  ## its center, the maximum is regarded as a peak"
-  df =
-    df %>% # Neri et al
-    mutate(pot = roll_max(gdf, n=window_size, align="center", fill=NA)) %>%
-    mutate(is_peak = Vectorize(isTRUE)(pot == gdf)) %>%
-    mutate(peak = ifelse(is_peak, pot, NA))
-  ## Unsure whether we need to make this unique or not?
-  peaks = df$pot[df$is_peak] ##%>% unique()
-  n_years = length(df$year %>% unique())
-  peaks_sorted = sort(peaks, decreasing = TRUE)
-  threshold_1 = peaks_sorted[n_years]
-  threshold_2 = peaks_sorted[n_years * 2]
-  threshold_3 = peaks_sorted[n_years * 3]
-  threshold_4 = peaks_sorted[n_years * 4]
 
-  df =
-    df %>%
-    mutate(pot_1 = ifelse(Vectorize(isTRUE)(peak >= threshold_1), 1, 0)) %>%
-    mutate(pot_2 = ifelse(Vectorize(isTRUE)(peak >= threshold_2), 1, 0)) %>%
-    mutate(pot_3 = ifelse(Vectorize(isTRUE)(peak >= threshold_3), 1, 0)) %>%
-    mutate(pot_4 = ifelse(Vectorize(isTRUE)(peak >= threshold_4), 1, 0))
-
-  ## Add climate season label to rows
-  df =
-    df %>%
-    mutate(
-      clim_season = case_when(
-        month %in% c(12, 1, 2, 3) ~ "DJFM",
-        month %in% c(4, 5) ~ "AM",
-        month %in% c(6, 7, 8, 9) ~ "JJAS",
-        month %in% c(10, 11) ~ "ON"
-      )
-    ) %>%
-    mutate(season_year = ifelse(month %in% c(1, 2, 3), year - 1, year))
-
-  ## Summarize to get flood counts
-  df =
-    df %>%
-    group_by(ID, clim_season, season_year) %>%
-    summarize(
-      missing_pct = (sum(is.na(gdf)) / n()) * 100,
-      Q_max = max(gdf, na.rm = TRUE),
-      Q_mean = mean(gdf, na.rm = TRUE),
-      Q_05 = quantile(gdf, probs = 0.05, na.rm = TRUE, names = FALSE),
-      Q_50 = quantile(gdf, probs = 0.50, na.rm = TRUE, names = FALSE),
-      Q_90 = quantile(gdf, probs = 0.90, na.rm = TRUE, names = FALSE),
-      Q_95 = quantile(gdf, probs = 0.95, na.rm = TRUE, names = FALSE),
-      P_sum = sum(cdr, na.rm = TRUE),
-      POT_1 = sum(pot_1, na.rm = TRUE),
-      POT_2 = sum(pot_2, na.rm = TRUE),
-      POT_3 = sum(pot_3, na.rm = TRUE),
-      POT_4 = sum(pot_4, na.rm = TRUE),
-    ) %>%
-    ungroup() %>%
-    mutate(across(Q_max:POT_4, ~ifelse(is.finite(.), ., NA)))
+  x <- summarise_discharge_data(x, meta)
+  x
 }
 
 rolling_fun <- function(yrs, data, cols, funs, start=2, end=9) {
@@ -469,13 +488,30 @@ corr_cross_validate <- function(fcst, obs, leave_out_add=0) {
       corr[i] = unname(corr_this$estimate)
     }
   }
-  ## ## EXPERIMENTAL
-  ## na_index = which(is.na(obs))
-  ## if (length(na_index) > 0) {
-  ##   corr_this = try(cor.test(fcst, obs, method="pearson", alternative="greater"))
-  ##   corr[na_index] = corr_this
-  ## }
   corr
+}
+
+sd_cross_validate <- function(x, leave_out_add=1) {
+  ntimes = length(x)
+  index = seq(1, ntimes) # for selection
+  sdev = rep(0., ntimes)
+  for (i in 1:ntimes) {
+    if (leave_out_add > 0) {
+      leave_out_start = max(c(1, i - leave_out_add))
+      leave_out_end = min(c(ntimes, i + leave_out_add))
+      leave_out_index = seq(leave_out_start, leave_out_end)
+    } else {
+      leave_out_index = c()
+    }
+    keep_index = !(index %in% leave_out_index)
+    sd_this = try(sd(x[keep_index], na.rm=TRUE), silent=TRUE)
+    if (isTRUE(inherits(sd_this, "try-error"))) {
+      sdev[i] = NA
+    } else {
+      sdev[i] = sd_this
+    }
+  }
+  sdev
 }
 
 calculate_error <- function(fcst, ensemble_fcst, n_years, n_forecast, match_var) {
@@ -539,6 +575,7 @@ calculate_error <- function(fcst, ensemble_fcst, n_years, n_forecast, match_var)
   ## included in a different lag year (i.e. `init_year_lag`))
   ensemble_fcst_lag =
     ensemble_fcst %>%
+    filter(variable %in% match_var) %>%
     left_join(init_year_lag, by = "init_year") %>%
     arrange(source_id, member, init_year_lag, init_year)
 
@@ -550,7 +587,7 @@ calculate_error <- function(fcst, ensemble_fcst, n_years, n_forecast, match_var)
   ## Calculate mean absolute error for the matching variable
   ensemble_fcst_lag =
     ensemble_fcst_lag %>%
-    filter(variable %in% match_var) %>%
+    ## filter(variable %in% match_var) %>%
     mutate(error = abs(std - ens_mean_lag_std))
 
   ## Prepare output data
@@ -685,7 +722,7 @@ make_prediction <- function(newdata,
   ##
   ## Returns:
   ##   Tibble.
-  if (model_family != "GA") {
+  if (!model_family %in% c("GA", "PO")) {
     msg <- paste0("Model family ", model_family, " currently not supported")
     stop(msg)
   }
@@ -711,7 +748,7 @@ make_prediction <- function(newdata,
     tbl[["date"]] = NA
     tbl[["model"]] = nm
     tbl[["observations"]] = obs
-    if (!is.null(model)) {
+    if (!is.na(model)) {
       mu = predict(
         model,
         newdata = newdata,
@@ -719,16 +756,22 @@ make_prediction <- function(newdata,
         type = "response",
         data = data
       )
-      sigma = predict(
-        model,
-        newdata = newdata,
-        what = "sigma",
-        type = "response",
-        data = data
-      )
-      shape = 1 / (sigma ** 2)
-      scale = mu / shape
+      if (model_family == "GA") {
+        sigma = predict(
+          model,
+          newdata = newdata,
+          what = "sigma",
+          type = "response",
+          data = data
+        )
+        shape = 1 / (sigma ** 2)
+        scale = mu / shape
 
+      } else {
+        sigma = NA
+        shape = NA
+        scale = NA
+      }
       tbl[["mu"]] = mu
       tbl[["sigma"]] = sigma
       tbl[["shape"]] = shape
@@ -743,9 +786,18 @@ make_prediction <- function(newdata,
         ## of the Gamma distn is a reparameterization which sets sigma**2=1/shape and
         ## mu=shape*scale [TODO - check this with Louise]
         ## Compute CRPS & CRPSS
-        tbl[["crps_fcst"]] = crps_gamma(obs, shape=shape, scale=scale)
-        ## Also try computing CRPS with ensemble approach
-        ens_fcst = qGA(seq(0.01, 0.99, by = 0.01), mu, sigma)
+        if (model_family == "GA") {
+          tbl[["crps_fcst"]] <- crps_gamma(obs, shape=shape, scale=scale)
+          ## Also try computing CRPS with ensemble approach
+          ens_fcst <- qGA(seq(0.01, 0.99, by = 0.01), mu, sigma)
+
+        } else {
+          tbl[["crps_fcst"]] <- NA
+          ens_fcst <- qPO(seq(0.01, 0.99, by = 0.01), mu)
+        }
+        ## tbl[["crps_fcst"]] = crps_gamma(obs, shape=shape, scale=scale)
+        ## ## Also try computing CRPS with ensemble approach
+        ## ens_fcst = qGA(seq(0.01, 0.99, by = 0.01), mu, sigma)
         ens_fcst_mat = t(matrix(ens_fcst))
         if (nrow(ens_fcst_mat) != length(obs)) {
           stop()
@@ -763,7 +815,11 @@ make_prediction <- function(newdata,
       for (j in 1:length(quantile_names)) {
         q = quantiles[j]
         qnm = quantile_names[j]
-        tbl[[qnm]] = qGA(q, mu, sigma)
+        if (model_family == "GA") {
+          tbl[[qnm]] = qGA(q, mu, sigma)
+        } else {
+          tbl[[qnm]] = qPO(q, mu)
+        }
       }
 
     } else {
@@ -1055,24 +1111,36 @@ fit_models <- function(formulas,
   if (!isTRUE(all.equal(model_names, names(sigma_formulas)))) {
     stop()
   }
-  if (model_family != "GA") {
+  if (!model_family %in% c("GA", "PO")) {
     stop(paste0("Model family '", model_family, "' not yet supported"))
   }
   fitted_models = list()
   for (i in 1:length(model_names)) {
     model_nm = model_names[i]
-    model = try(
-      gamlss(
-        formula = formulas[[i]],
-        sigma.formula = sigma_formulas[[i]],
-        family = GA,
-        trace = FALSE,
-        data = data,
-        ...
+    if (model_family == "GA") {
+      model <- try(
+        gamlss(
+          formula = formulas[[i]],
+          sigma.formula = sigma_formulas[[i]],
+          family = GA,
+          trace = FALSE,
+          data = data,
+          ...
+        ), silent=TRUE
       )
-    )
+    } else {
+      model <- try(
+        gamlss(
+          formula = formulas[[i]],
+          family = PO,
+          trace = FALSE,
+          data = data,
+          ...
+        ), silent=TRUE
+      )
+    }
     if (inherits(model, "try-error")) {
-      model = NULL
+      model = NA
     }
     fitted_models[[model_nm]] = model
   }

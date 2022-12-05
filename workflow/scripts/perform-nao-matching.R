@@ -154,13 +154,12 @@ if (period$hindcast) {
         align="right"
       )
     )
-  ## stop()
+
   ## Standardise (i.e. divide by standard deviation)
   fcst =
     fcst %>%
     mutate(
       obs_std = obs / sd(obs, na.rm=TRUE), # FIXME
-      ## obs_std = obs / sd(obs), # FIXME
       ens_mean_lag_std = ens_mean_lag / sd(ens_mean_lag, na.rm=TRUE),
       ens_mean_std = ens_mean / sd(ens_mean_lag, na.rm=TRUE)
     )
@@ -171,8 +170,8 @@ if (period$hindcast) {
   fcst =
     fcst %>%
     mutate(
-      ens_mean_lag_var_adj = ens_mean_lag_std * sd(obs),
-      ens_mean_var_adj = ens_mean_std * sd(obs)
+      ens_mean_lag_var_adj = ens_mean_lag_std * sd(obs, na.rm=TRUE),
+      ens_mean_var_adj = ens_mean_std * sd(obs, na.rm=TRUE)
     )
 
   ## Multiply by ACC (Note that standardising
@@ -183,7 +182,7 @@ if (period$hindcast) {
   fcst =
     fcst %>%
     mutate(
-      corr = corr_cross_validate(ens_mean_lag_std, obs_std, 1)
+      corr = corr_cross_validate(ens_mean_lag_std, obs_std, 1),
     ) %>%
     mutate(
       ens_mean_lag_var_adj = corr * ens_mean_lag_var_adj,
@@ -191,7 +190,32 @@ if (period$hindcast) {
       ens_mean_lag_std = corr * ens_mean_lag_std,
       ens_mean_std = corr * ens_mean_std
     )
+  ## NB ens_mean_lag_std is equivalent to init_nao_em on L318 in doug_smith_code.py
 
+  ## The following method uses cross-validation to compute the
+  ## standard deviations as well as ACC [not done in Doug Smith's code]
+  ## fcst =
+  ##   fcst %>%
+  ##   mutate(
+  ##     obs_std = obs / sd(obs, na.rm=TRUE), # FIXME
+  ##   )
+  ## ## Multiply by ACC (Note that standardising
+  ## ## and multiplying by ACC is equivalent to
+  ## ## multiplying by RPS)
+  ## fcst =
+  ##   fcst %>%
+  ##   mutate(
+  ##     sd_fcst = sd_cross_validate(ens_mean_lag, 1), # TEST
+  ##     sd_obs = sd_cross_validate(obs, 1),           # TEST
+  ##     corr = corr_cross_validate(ens_mean_lag, obs, 1),
+  ##     rps = corr * sd_obs / sd_fcst
+  ##   ) %>%
+  ##   mutate(
+  ##     ens_mean_lag_var_adj = ens_mean_lag * rps,
+  ##     ens_mean_var_adj = ens_mean * rps,
+  ##     ens_mean_lag_std = corr * ens_mean_lag / sd_fcst,
+  ##     ens_mean_std = corr * ens_mean / sd_fcst
+  ##   )
   write_parquet(
     fcst,
     file.path(outputdir, "ensemble_mean_fcst.parquet")
