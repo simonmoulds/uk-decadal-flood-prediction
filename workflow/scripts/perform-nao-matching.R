@@ -5,8 +5,8 @@
 ## Author : Simon Moulds
 ## Date   : Nov 2021 - July 2022
 ## Purpose:
-## To implement the NAO-matching technique outlined by
-## Smith et al. [S20]
+## To implement the NAO-matching technique
+## outlined by Smith et al. [S20]
 ##
 ## ####################################################### ##
 
@@ -21,11 +21,11 @@ options(bitmapType = "cairo")
 options(dplyr.summarise.inform = FALSE)
 
 ## ## TESTING
-## config = read_yaml('config/config_2.yml')
-## obspath = 'results/intermediate/obs.parquet'
+## config = read_yaml('config/config_1.yml')
+## obspath = 'results/exp1/yr2to9_lag/obs.parquet'
 ## fcstpath = 'results/intermediate/ensemble-forecast'
 ## aggr_period = 'yr2to9_lag'
-## outputroot = 'results/exp2/analysis'
+## outputroot = 'results/exp1/analysis'
 ## cwd = 'workflow/scripts'
 
 ## extract configuration info
@@ -69,59 +69,73 @@ label = period$name
 ## Only run if hindcast (TODO work out better way to do this)
 if (period$hindcast) {
 
-  ## Make output directories
   outputdir = file.path(outputroot, aggr_period)
-  if (dir.exists(outputdir))
-    unlink(outputdir, recursive = TRUE)
-  dir.create(outputdir, recursive = TRUE)
+  ## if (dir.exists(outputdir))
+  ##   unlink(outputdir, recursive = TRUE)
+  ## dir.create(outputdir, recursive = TRUE)
 
-  ## Load observed data, save for later use
-  obs = get_obs(obspath, study_period, start = start, end = end)
-  obs = obs %>%
-    ## pivot_longer(all_of(climate_vars), names_to = "variable", values_to = "obs")
-    pivot_longer(starts_with(climate_vars), names_to = "variable", values_to = "obs")
-  write_parquet(
-    obs,
-    file.path(outputdir, "obs_study_period.parquet")
-  )
-  lead_times = lead_tm
-  ensemble_fcst_raw_complete = get_hindcast_data(
-    fcstpath,
-    ## "data",
-    ## config$output_data$root,
-    study_period,
-    lead_times
-  )
+  obs <- read_parquet(obspath)
+  ## ## Load observed data, save for later use
+  ## obs = get_obs(obspath, study_period, start = start, end = end)
+  ## obs = obs %>%
+  ##   pivot_longer(
+  ##     starts_with(climate_vars),
+  ##     names_to = "variable",
+  ##     values_to = "obs"
+  ##   )
+  ## write_parquet(
+  ##   obs,
+  ##   file.path(outputdir, "obs_study_period.parquet")
+  ## )
+
   ## ################################### ##
   ## Prepare ensemble forecast           ##
   ## ################################### ##
 
-  ## First of all we need to aggregate values if a multi-year
-  ## period is used.
-  ## vars = c("nao", "ea", "amv", "european_precip", "uk_precip", "uk_temp")
-  group_vars = c("project", "mip", "source_id", "member", "init_year")
-  anomaly_group_vars = c("source_id", "member")
-  ens_mean_group_vars = c("init_year", "variable")
-  ensemble_fcst_raw_complete =
-    ensemble_fcst_raw_complete %>%
-    group_by_at(group_vars) %>%
-    summarize(across(starts_with(climate_vars), mean))
-    ## summarize(across(all_of(vars), mean))
+  ## lead_times = lead_tm
+  ## ensemble_fcst_raw_complete = get_hindcast_data(
+  ##   fcstpath,
+  ##   study_period,
+  ##   lead_times
+  ## )
 
-  ## Compute anomalies of each variable
-  compute_anomaly = function(x) x - mean(x, na.rm = TRUE)
-  ensemble_fcst =
-    ensemble_fcst_raw_complete %>%
-    group_by_at(anomaly_group_vars) %>%
-    mutate(across(starts_with(climate_vars), compute_anomaly)) %>%
-    ## mutate(across(all_of(vars), compute_anomaly)) %>%
-    ungroup()
-  write_parquet(
-    ensemble_fcst,
-    file.path(outputdir, "ensemble_fcst.parquet")
-  )
+  ## ## ensemble_fcst_field_raw_complete <- get_hindcast_data(
+  ## ##   "results/intermediate/ensemble-forecast-field",
+  ## ##   study_period,
+  ## ##   lead_times,
+  ## ##   all_ids = FALSE,
+  ## ##   id = 12001
+  ## ## )
+
+  ## ## First of all we need to aggregate values if a multi-year
+  ## ## period is used.
+  ## ## vars = c("nao", "ea", "amv", "european_precip", "uk_precip", "uk_temp")
+  ## group_vars = c("project", "mip", "source_id", "member", "init_year")
+  ## anomaly_group_vars = c("source_id", "member")
+  ## ens_mean_group_vars = c("init_year", "variable")
+  ## ensemble_fcst_raw_complete =
+  ##   ensemble_fcst_raw_complete %>%
+  ##   group_by_at(group_vars) %>%
+  ##   summarize(across(starts_with(climate_vars), mean))
+  ##   ## summarize(across(all_of(vars), mean))
+
+  ## ## Compute anomalies of each variable
+  ## compute_anomaly = function(x) x - mean(x, na.rm = TRUE)
+  ## ensemble_fcst =
+  ##   ensemble_fcst_raw_complete %>%
+  ##   group_by_at(anomaly_group_vars) %>%
+  ##   mutate(across(starts_with(climate_vars), compute_anomaly)) %>%
+  ##   ## mutate(across(all_of(vars), compute_anomaly)) %>%
+  ##   ungroup()
+  ## write_parquet(
+  ##   ensemble_fcst,
+  ##   file.path(outputdir, "ensemble_fcst.parquet")
+  ## )
+  ensemble_fcst <- read_parquet(fcstpath)
 
   ## Take the ensemble mean
+  group_vars = c("project", "mip", "source_id", "member", "init_year")
+  ens_mean_group_vars = c("init_year", "variable")
   fcst =
     ensemble_fcst %>%
     pivot_longer(starts_with(climate_vars), names_to = "variable", values_to = "value") %>%

@@ -133,16 +133,10 @@ modelling:
     study_period: 1960:2005
     formulas:
       P: Q ~ european_precip
-      # P_T: Q ~ european_precip + uk_temp
       P_T: Q ~ european_precip + amv
       NAO: Q ~ nao
       NAO_P: Q ~ nao + european_precip
       NAO_P_T: Q ~ nao + european_precip + amv
-      # NAO_P_T: Q ~ nao + european_precip + uk_temp
-      # UKP: Q ~ uk_precip
-      # UKP_T: Q ~ uk_precip + uk_temp
-      # NAO_UKP: Q ~ nao + uk_precip
-      # NAO_UKP_T: Q ~ nao + uk_precip + uk_temp
     subsets:
       - full
       - best_n

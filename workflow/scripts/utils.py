@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import subprocess
 import glob
 import re
 import datetime
@@ -122,14 +123,18 @@ def _get_variable_name(ds):
         return 'ea'
     elif 'amv' in varnames:
         return 'amv'
+    elif 'uk_temp' in varnames:
+        return 'uk_temp'
     elif 'european_precip' in varnames:
         return 'european_precip'
     elif 'uk_precip' in varnames:
         return 'uk_precip'
     elif 'uk_precip_field' in varnames:
         return 'uk_precip_field'
-    elif 'uk_temp' in varnames:
-        return 'uk_temp'
+    elif 'precip_field' in varnames:
+        return 'precip_field'
+    elif 'temp_field' in varnames:
+        return 'temp_field'
 
 
 def _index_xarray_to_dataframe(x, varname, metadata):
@@ -153,11 +158,45 @@ def _index_xarray_to_dataframe(x, varname, metadata):
     return df
 
 
+def _index_xarray_to_dataframe_new(x, varname, metadata):
+    df = x.to_dataframe()
+    df = df.rename(
+        {varname: 'value'}, axis="columns"
+    ).reset_index()
+    df['project'] = metadata['project']
+    df['source_id'] = metadata['model']
+    df['mip'] = metadata['mip']
+    df['experiment'] = metadata['experiment']
+    df['member'] = metadata['ensemble']
+    df['init_year'] = metadata['init_year']
+    df['variable'] = varname
+    # Fix time values
+    df['year'] = [tm.year for tm in df['time']]
+    df['month'] = [tm.month for tm in df['time']]
+    df = df.sort_values(['init_year', 'year', 'month']) #, 'season_year'])
+    cols = [
+        'year', 'month', # TODO change to ID
+        'project', 'source_id', 'mip', 'experiment',
+        'member', 'init_year', 'variable', 'value'
+    ]
+    # try:
+    df = df[cols]
+    # except:
+    #     # print(df)
+    #     # print(varname)
+    #     # print(x)
+    #     raise KeyError
+    return df
+
+
 def _spatial_xarray_to_dataframe_new(x, varname, metadata):
     df = x.to_dataframe()
     df = df.reset_index()
-    keep_cols = ['time', 'z', 'season_year', varname]
+    keep_cols = ['ID', 'time', varname]
+    # keep_cols = ['ID', 'season_year', varname]
     drop_cols = [nm for nm in df if nm not in keep_cols]
+    # keep_cols = ['time', 'ID', 'season_year', varname]
+    # drop_cols = [nm for nm in df if nm not in keep_cols]
     df = df.drop(drop_cols, axis=1)
     df = df.set_index(keep_cols)
     df = df.reset_index()
@@ -171,14 +210,47 @@ def _spatial_xarray_to_dataframe_new(x, varname, metadata):
     df['member'] = metadata['ensemble']
     df['init_year'] = metadata['init_year']
     df['variable'] = varname
-    df = df.sort_values(['init_year', 'season_year'])
+    # Convert time into year month
+    df['year'] = [tm.year for tm in df['time']]
+    df['month'] = [tm.month for tm in df['time']]
+    df = df.sort_values(['init_year', 'year', 'month']) #, 'season_year'])
     cols = [
-        'z',                    # TODO change to ID
+        'ID', 'year', 'month', # TODO change to ID
         'project', 'source_id', 'mip', 'experiment',
-        'member', 'init_year', 'season_year', 'variable', 'value'
+        'member', 'init_year', 'variable', 'value'
     ]
     df = df[cols]
     return df
+
+
+# def _spatial_xarray_to_dataframe_new(x, varname, metadata):
+#     df = x.to_dataframe()
+#     df = df.reset_index()
+#     keep_cols = ['ID', 'season_year', varname]
+#     drop_cols = [nm for nm in df if nm not in keep_cols]
+#     # keep_cols = ['time', 'ID', 'season_year', varname]
+#     # drop_cols = [nm for nm in df if nm not in keep_cols]
+#     df = df.drop(drop_cols, axis=1)
+#     df = df.set_index(keep_cols)
+#     df = df.reset_index()
+#     df = df.rename(
+#         {varname: 'value'}, axis="columns"
+#     ).reset_index()
+#     df['project'] = metadata['project']
+#     df['source_id'] = metadata['model']
+#     df['mip'] = metadata['mip']
+#     df['experiment'] = metadata['experiment']
+#     df['member'] = metadata['ensemble']
+#     df['init_year'] = metadata['init_year']
+#     df['variable'] = varname
+#     df = df.sort_values(['init_year', 'season_year'])
+#     cols = [
+#         'ID',                    # TODO change to ID
+#         'project', 'source_id', 'mip', 'experiment',
+#         'member', 'init_year', 'season_year', 'variable', 'value'
+#     ]
+#     df = df[cols]
+#     return df
 
 
 def _spatial_xarray_to_dataframe(x, varname, metadata):
@@ -243,24 +315,37 @@ def _ensemble_field_preprocessor(inputdir, outputdir, station_ids, lat_coords, l
         datadir = os.path.join(rootdir, recipe)
         prec_field_datadir = os.path.join(
             datadir,
-            'work/uk_precip_field/uk_precip_field'
+            'work/precip_field/precip_field'
         )
         temp_field_datadir = os.path.join(
             datadir,
-            'work/global_temp_field/global_temp_field'
+            'work/temp_field/temp_field'
         )
-        recipe_fs = glob.glob(prec_field_datadir + "/*.nc")
+        recipe_fs = \
+            glob.glob(prec_field_datadir + "/*.nc") \
+            + glob.glob(temp_field_datadir + "/*.nc")
         fs += recipe_fs
 
+    # TODO do not select seasons from data in EsmValTool
+    # This will allow us to carry out the analysis across all seasons
     lats = xarray.DataArray(lat_coords, dims="ID")
     lons = xarray.DataArray(lon_coords, dims="ID")
     for i in tqdm(range(len(fs))):
+        # f = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/esmvaltool_output/recipe_s20_cmip6_autogen_20221214_120531/work/precip_field/precip_field/CMIP6_NorCPM1_Amon_dcppA-hindcast_s2010-r9i2p1f1_pr_gn_2011-2019.nc'
         f = fs[i]
         metadata = _parse_filepath(f)
         ds = xarray.open_dataset(f)
+        lon_coord = _get_xarray_longitude_name(ds)
+        ds.coords[lon_coord] = (ds.coords[lon_coord] + 180) % 360 - 180
+        ds = ds.sortby(ds[lon_coord])
         varname = _get_variable_name(ds)
-        x = _compute_mean_season(ds, varname, metadata['init_year'], season=[12, 1, 2, 3])
-        x = x.sel(lat=lats, lon=lons, method='nearest')
+        # OLD:
+        # x = _compute_mean_season(
+        #     ds, varname, metadata['init_year'],
+        #     season=[12, 1, 2, 3]
+        # )
+        # x = x.sel(lat=lats, lon=lons, method='nearest')
+        x = ds.sel(lat=lats, lon=lons, method='nearest')
         x = x.assign_coords(ID=station_ids)
         df = _spatial_xarray_to_dataframe_new(x, varname, metadata)
         tbl = pa.Table.from_pandas(df, preserve_index=False)
@@ -269,21 +354,21 @@ def _ensemble_field_preprocessor(inputdir, outputdir, station_ids, lat_coords, l
             root_path = os.path.join(outputdir, 'ensemble-forecast-field'),
             partition_cols = ['source_id', 'member', 'init_year', 'variable']
         )
-        # Antecedent conditions [only for prec and temp]
-        if varname in ['uk_precip_field']:
-            x = _compute_mean_season(
-                ds, varname, metadata['init_year'], season=[9, 10, 11]
-            )
-            x = x.sel(lat=lats, lon=lons, method='nearest')
-            x = x.assign_coords(ID=station_ids)
-            df = _spatial_xarray_to_dataframe_new(x, varname, metadata)
-            df['variable'] = [var + '_antecedent' for var in df['variable']]
-            tbl = pa.Table.from_pandas(df, preserve_index=False)
-            pq.write_to_dataset(
-                tbl,
-                root_path = os.path.join(outputdir, 'ensemble-forecast-field'),
-                partition_cols = ['source_id', 'member', 'init_year', 'variable']
-            )
+        # OLD:
+        # # Antecedent conditions [only for prec and temp]
+        # if varname in ['precip_field', 'temp_field']:
+        #     x = _compute_mean_season(
+        #         ds, varname, metadata['init_year'], season=[9, 10, 11]
+        #     )
+        #     x = x.sel(lat=lats, lon=lons, method='nearest')
+        #     x = x.assign_coords(ID=station_ids)
+        #     df = _spatial_xarray_to_dataframe_new(x, varname, metadata)
+        #     tbl = pa.Table.from_pandas(df, preserve_index=False)
+        #     pq.write_to_dataset(
+        #         tbl,
+        #         root_path = os.path.join(outputdir, 'ensemble-forecast-field'),
+        #         partition_cols = ['source_id', 'member', 'init_year', 'variable']
+        #     )
 
 
 def _ensemble_preprocessor(inputdir, outputdir, config):
@@ -301,10 +386,6 @@ def _ensemble_preprocessor(inputdir, outputdir, config):
     recipe_output_dirs = \
         config['ensemble_data']['cmip5']['subdirectory'] \
         + config['ensemble_data']['cmip6']['subdirectory']
-
-    # ################################# #
-    # Handle 1D indices
-    # ################################# #
 
     fs = []
     for recipe in recipe_output_dirs:
@@ -334,36 +415,39 @@ def _ensemble_preprocessor(inputdir, outputdir, config):
 
     # Process files, sorting them on the basis of the filename
     for i in tqdm(range(len(fs))):
-        # f = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/esmvaltool_output/recipe_s20_cmip6_autogen_20221116_114454/work/uk_precip/uk_precip/CMIP6_NorCPM1_Amon_dcppA-hindcast_s2010-r9i2p1f1_pr_gn_2011-2019.nc'
+        # f = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/esmvaltool_output/recipe_s20_cmip6_autogen_20221214_120531/work/uk_precip/uk_precip/CMIP6_NorCPM1_Amon_dcppA-hindcast_s2010-r9i2p1f1_pr_gn_2011-2019.nc'
         f = fs[i]
         metadata = _parse_filepath(f)
         ds = xarray.open_dataset(f)
         varname = _get_variable_name(ds)
-        x = _compute_mean_season(ds, varname, metadata['init_year'], season=[12, 1, 2, 3])
-        df = _index_xarray_to_dataframe(x, varname, metadata)
+        # OLD:
+        # x = _compute_mean_season(ds, varname, metadata['init_year'], season=[12, 1, 2, 3])
+        # df = _index_xarray_to_dataframe(x, varname, metadata)
+        df = _index_xarray_to_dataframe_new(ds, varname, metadata)
         tbl = pa.Table.from_pandas(df, preserve_index=False)
         pq.write_to_dataset(
             tbl,
             root_path=os.path.join(outputdir, 'ensemble-forecast'),
             partition_cols=['source_id', 'member', 'init_year', 'variable']
         )
-        # Antecedent conditions [only for prec and temp]
-        if varname in ['european_precip', 'uk_precip', 'uk_temp']:
-            try:
-                x = _compute_mean_season(
-                    ds, varname, metadata['init_year'], season=[9, 10, 11]
-                )
-            except ValueError:
-                continue
+        # OLD:
+        # # Antecedent conditions [only for prec and temp]
+        # if varname in ['european_precip', 'uk_precip', 'uk_temp']:
+        #     try:
+        #         x = _compute_mean_season(
+        #             ds, varname, metadata['init_year'], season=[9, 10, 11]
+        #         )
+        #     except ValueError:
+        #         continue
 
-            df = _index_xarray_to_dataframe(x, varname, metadata)
-            df['variable'] = [var + '_antecedent' for var in df['variable']]
-            tbl = pa.Table.from_pandas(df, preserve_index=False)
-            pq.write_to_dataset(
-                tbl,
-                root_path = os.path.join(outputdir, 'ensemble-forecast'),
-                partition_cols = ['source_id', 'member', 'init_year', 'variable']
-            )
+        #     df = _index_xarray_to_dataframe(x, varname, metadata)
+        #     df['variable'] = [var + '_antecedent' for var in df['variable']]
+        #     tbl = pa.Table.from_pandas(df, preserve_index=False)
+        #     pq.write_to_dataset(
+        #         tbl,
+        #         root_path=os.path.join(outputdir, 'ensemble-forecast'),
+        #         partition_cols=['source_id', 'member', 'init_year', 'variable']
+        #     )
 
     # # Now handle variables with a spatial dimension
     # fs = []
@@ -422,6 +506,11 @@ def _get_latitude_name(x):
 
 def _get_longitude_name(x):
     coord_nms = _coord_names(x)
+    return [nm for nm in coord_nms if nm in VALID_X_NAMES][0]
+
+
+def _get_xarray_longitude_name(x):
+    coord_nms = list(x.coords)
     return [nm for nm in coord_nms if nm in VALID_X_NAMES][0]
 
 
@@ -685,7 +774,7 @@ def _convert_ncdc(ncdc_filename):
                 lat_index += 1
     ds.close()
 
-def _extract_index(ds, index_name, column_name = None):
+def _extract_index(ds, index_name, column_name=None):
     # if index_name == "enso1":
     #     ds_index = _extract_enso1_ts(ds)
     # elif index_name == "enso2":
@@ -747,7 +836,7 @@ def _extract_index(ds, index_name, column_name = None):
     # df = df.rename({xr.name : 'var'}, axis=1)
     # Check time index
     time_idx = [col for col in df if col in VALID_TIME_NAMES]
-    df = df.rename({time_idx[0] : 'time'}, axis=1)
+    df = df.rename({time_idx[0]: 'time'}, axis=1)
     # Do we have spatial coordinates?
     lon_idx = [col for col in df if col in VALID_X_NAMES]
     lat_idx = [col for col in df if col in VALID_Y_NAMES]
@@ -787,142 +876,12 @@ def _extract_index(ds, index_name, column_name = None):
     return df
 
 
-# def _observed_field_preprocessor(inputdir, outputdir, station_ids, lat_coords, lon_coords, config):
-
-#     # # Must be a way to avoid repeating this
-#     # with open(config, 'r') as f:
-#     #     config = yaml.load(f, Loader=yaml.FullLoader)
-
-#     # observed_root = inputdir
-
-#     # TESTING
-#     observed_root = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data'
-#     config = {
-#         'observed_data': {
-#             'hadslp2r': {'subdirectory': 'HadSLP2r'},
-#             'gpcc': {'subdirectory': 'GPCC'},
-#             'hadcrut4': {'subdirectory': 'HadCRUT4'},
-#             'hadisst': {'subdirectory': 'HadISST'},
-#             'giss': {'subdirectory': 'GISS'},
-#             'ncdc': {'subdirectory': 'NCDC'}}}
-#     # END TESTING
-
-#     hadslp2r_filename = os.path.join(
-#         observed_root,
-#         config['observed_data']['hadslp2r']['subdirectory'],
-#         'slp.mnmean.real.nc'
-#     )
-#     gpcc_filename = os.path.join(
-#         observed_root,
-#         config['observed_data']['gpcc']['subdirectory'],
-#         'precip.mon.total.2.5x2.5.v2018.nc'
-#     )
-#     hadcrut4_filename = os.path.join(
-#         observed_root,
-#         config['observed_data']['hadcrut4']['subdirectory'],
-#         'HadCRUT.4.6.0.0.median.nc'
-#     )
-#     # hadsst_filename = "data-raw/HadISST/HadISST_sst.nc"
-#     hadsst_filename = os.path.join(
-#         observed_root,
-#         config['observed_data']['hadisst']['subdirectory'],
-#         'HadISST_sst.nc'
-#     )
-#     giss_filename = os.path.join(
-#         observed_root,
-#         config['observed_data']['giss']['subdirectory'],
-#         'gistemp1200_GHCNv4_ERSSTv5.nc'
-#     )
-#     ncdc_filename = os.path.join(
-#         observed_root,
-#         config['observed_data']['ncdc']['subdirectory'],
-#         'ncdc-merged-sfc-mntp.dat'
-#     )
-#     # output_dir = config['output_data']['root']
-
-#     # ################# #
-#     # UK rainfall field
-#     # ################# #
-#     # import iris
-#     # gpcc_filename = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data/GPCC/precip.mon.total.2.5x2.5.v2018.nc'
-#     source = iris.load_cube(gpcc_filename, 'precip')
-#     # target = iris.load_cube(hadslp2r_filename, 'slp')
-#     # from esmvalcore import *
-#     target = regional_stock_cube({
-#         'start_longitude': 0,
-#         'end_longitude': 355,
-#         'step_longitude': 5,
-#         'start_latitude': 90,
-#         'end_latitude': -90,
-#         'step_latitude': -5
-#     })
-#     ds_regrid = _regrid_cube(source, target)
-#     ds = xarray.DataArray.from_iris(ds_regrid)
-
-#     lat_coords = [0, 5, 3, 1]
-#     lon_coords = [10, 15, 18, 19]
-#     lats = xarray.DataArray(lat_coords, dims="ID")
-#     lons = xarray.DataArray(lon_coords, dims="ID")
-#     x = ds.sel(lat=lats, lon=lons, method='nearest')
-#     x = x.assign_coords(ID=station_ids)
-
-
-#     # xr = xarray.DataArray.from_iris(ds_regrid)
-#     # xr.to_netcdf("../../test.nc")
-#     uk_precip_field_df = _extract_index(ds_regrid, 'uk_precip_field')
-#     uk_precip_field_df['days_in_month'] = uk_precip_field_df.apply(
-#         lambda x: monthrange(int(x['year']), int(x['month']))[1],
-#         axis=1
-#     )
-#     cols = [nm for nm in uk_precip_field_df if nm.startswith('uk_precip_field')]
-#     for col in cols:
-#         uk_precip_field_df[col] /= uk_precip_field_df['days_in_month']
-
-#     # ################# #
-#     # Temperature fields
-#     # ################# #
-
-#     # 1 - HadCRUT4
-#     ds = iris.load_cube(hadcrut4_filename, 'temperature_anomaly')
-#     hct4_atlantic_df = _extract_index(ds, "atlantic", "hct4_atlantic_temp")
-#     hct4_globe_df = _extract_index(ds, "globe", "hct4_globe_temp")
-#     hct4_df = pd.merge(hct4_atlantic_df, hct4_globe_df)
-#     hct4_uk_df = _extract_index(ds, "uk_temp", "hct4_uk_temp")
-
-#     # 2 - GISS
-#     ds = iris.load_cube(giss_filename, 'tempanomaly')
-#     giss_atlantic_df = _extract_index(ds, "atlantic", "giss_atlantic_temp")
-#     giss_globe_df = _extract_index(ds, "globe", "giss_globe_temp")
-#     giss_df = pd.merge(giss_atlantic_df, giss_globe_df)
-#     giss_uk_df = _extract_index(ds, "uk_temp", "giss_uk_temp")
-
-#     # NCDC [needs to be converted to netCDF first of all]
-#     _convert_ncdc(ncdc_filename)
-#     ds = iris.load_cube('/tmp/ncdc-merged-sfc-mntp.nc', 'tempanomaly')
-#     ncdc_atlantic_df = _extract_index(ds, "atlantic", "ncdc_atlantic_temp")
-#     ncdc_globe_df = _extract_index(ds, "globe", "ncdc_globe_temp")
-#     ncdc_df = pd.merge(ncdc_atlantic_df, ncdc_globe_df)
-#     ncdc_uk_df = _extract_index(ds, "uk_temp", "ncdc_uk_temp")
-
-#     # Now merge datasets
-#     temp_df = reduce(
-#         lambda left, right: pd.merge(left, right),
-#         [hct4_df, giss_df, ncdc_df, hct4_uk_df, giss_uk_df, ncdc_uk_df]
-#     )
-#     # Take mean temperature for Atlantic and global regions
-#     temp_datasets = ['hct4', 'giss']#, 'ncdc']
-#     atlantic_cols = [ds + '_atlantic_temp' for ds in temp_datasets]
-#     globe_cols = [ds + '_globe_temp' for ds in temp_datasets]
-#     uk_cols = [ds + '_uk_temp' for ds in temp_datasets]
-
-
-def _observed_preprocessor(inputdir, outputdir, config):
+def _parse_observed_inputs(config, inputdir):
+    # Must be a way to avoid repeating this
     with open(config, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
-
     observed_root = inputdir
     # TESTING
-    # observed_root = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data'
     # config = {
     #     'observed_data': {
     #         'hadslp2r': {'subdirectory': 'HadSLP2r'},
@@ -931,7 +890,8 @@ def _observed_preprocessor(inputdir, outputdir, config):
     #         'hadisst': {'subdirectory': 'HadISST'},
     #         'giss': {'subdirectory': 'GISS'},
     #         'ncdc': {'subdirectory': 'NCDC'}}}
-
+    # observed_root = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data'
+    # END TESTING
     hadslp2r_filename = os.path.join(
         observed_root,
         config['observed_data']['hadslp2r']['subdirectory'],
@@ -947,7 +907,6 @@ def _observed_preprocessor(inputdir, outputdir, config):
         config['observed_data']['hadcrut4']['subdirectory'],
         'HadCRUT.4.6.0.0.median.nc'
     )
-    # hadsst_filename = "data-raw/HadISST/HadISST_sst.nc"
     hadsst_filename = os.path.join(
         observed_root,
         config['observed_data']['hadisst']['subdirectory'],
@@ -963,7 +922,162 @@ def _observed_preprocessor(inputdir, outputdir, config):
         config['observed_data']['ncdc']['subdirectory'],
         'ncdc-merged-sfc-mntp.dat'
     )
-    # output_dir = config['output_data']['root']
+    out = {
+        'HadSLP2r': hadslp2r_filename,
+        'GPCC': gpcc_filename,
+        'HadCRUT4': hadcrut4_filename,
+        'HadSST': hadsst_filename,
+        'GISS': giss_filename,
+        'NCDC': ncdc_filename
+    }
+    return out
+
+
+def _observed_field_preprocessor(inputdir, outputdir, station_ids, lat_coords, lon_coords, config):
+
+    input_filenames = _parse_observed_inputs(config, inputdir)
+    hadslp2r_filename = input_filenames['HadSLP2r']
+    gpcc_filename = input_filenames['GPCC']
+    hadcrut4_filename = input_filenames['HadCRUT4']
+    hadsst_filename = input_filenames['HadSST']
+    giss_filename = input_filenames['GISS']
+    ncdc_filename = input_filenames['NCDC']
+
+    def myfun(x, varname):
+        df = x.to_dataframe()
+        df = df.reset_index()
+        keep_cols = ['time', 'ID', varname]
+        drop_cols = [nm for nm in df if nm not in keep_cols]
+        df = df.drop(drop_cols, axis=1)
+        df = df.set_index(['time', 'ID'])
+        df = df.reset_index()
+        df = df.rename(
+            {varname: 'value'}, axis="columns"
+        )
+        df['year'] = [tm.year for tm in df['time']]
+        df['month'] = [tm.month for tm in df['time']]
+        df = df[['ID', 'year', 'month', 'value']]
+        return df
+
+    # ################# #
+    # UK rainfall field
+    # ################# #
+    # import iris
+    # gpcc_filename = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data/GPCC/precip.mon.total.2.5x2.5.v2018.nc'
+    gpcc_filename_interp = os.path.join(
+        outputdir,
+        os.path.basename(os.path.splitext(gpcc_filename)[0]) + '_interp.nc'
+    )
+    # FIXME - ideally use another dataset without missing data
+    subprocess.run(['cdo', 'fillmiss', gpcc_filename, gpcc_filename_interp])
+
+    source = iris.load_cube(gpcc_filename_interp, 'precip')
+    # This is OK because the original data has 0-360 longitude as well
+    target = regional_stock_cube({
+        'start_longitude': 0,
+        'end_longitude': 355,
+        'step_longitude': 5,
+        'start_latitude': 90,
+        'end_latitude': -90,
+        'step_latitude': -5
+    })
+    ds_regrid = _regrid_cube(source, target)
+    ds = xarray.DataArray.from_iris(ds_regrid)
+
+    # Ensure the dataset has longitudes from -180 to +180
+    lon_coord = _get_xarray_longitude_name(ds)
+    ds.coords[lon_coord] = (ds.coords[lon_coord] + 180) % 360 - 180
+    ds = ds.sortby(ds[lon_coord])
+
+    lats = xarray.DataArray(lat_coords, dims="ID")
+    lons = xarray.DataArray(lon_coords, dims="ID")
+    x = ds.sel(lat=lats, lon=lons, method='nearest')
+
+    x = x.assign_coords(ID=station_ids)
+    gpcc = myfun(x, 'precip')
+    gpcc['days_in_month'] = gpcc.apply(
+        lambda x: monthrange(int(x['year']), int(x['month']))[1],
+        axis=1
+    )
+    gpcc['value'] /= gpcc['days_in_month']
+    gpcc = gpcc[['ID', 'year', 'month', 'value']]
+    prec_df = gpcc.rename(columns={'value': 'precip_field'})
+
+    # ################# #
+    # Temperature fields
+    # ################# #
+
+    # Average over three datasets [check: do we need to regrid?]
+
+    # 1 - HadCRUT4
+    ds = iris.load_cube(hadcrut4_filename, 'temperature_anomaly')
+    ds = xarray.DataArray.from_iris(ds)
+    lon_coord = _get_xarray_longitude_name(ds)
+    ds.coords[lon_coord] = (ds.coords[lon_coord] + 180) % 360 - 180
+    ds = ds.sortby(ds[lon_coord])
+    x = ds.sel(latitude=lats, longitude=lons, method='nearest')
+    x = x.assign_coords(ID=station_ids)
+    hct4 = myfun(x, 'temperature_anomaly')
+    hct4 = hct4.rename(columns={'value': 'HadCRUT4'})
+
+    # 2 - GISS
+    ds = iris.load_cube(giss_filename, 'tempanomaly')
+    ds = xarray.DataArray.from_iris(ds)
+    lon_coord = _get_xarray_longitude_name(ds)
+    ds.coords[lon_coord] = (ds.coords[lon_coord] + 180) % 360 - 180
+    ds = ds.sortby(ds[lon_coord])
+    x = ds.sel(lat=lats, lon=lons, method='nearest')
+    x = x.assign_coords(ID=station_ids)
+    giss = myfun(x, 'tempanomaly')
+    giss = giss.rename(columns={'value': 'GISS'})
+
+    # NCDC [needs to be converted to netCDF first of all]
+    _convert_ncdc(ncdc_filename)
+    ds = iris.load_cube('/tmp/ncdc-merged-sfc-mntp.nc', 'tempanomaly')
+    ds = xarray.DataArray.from_iris(ds)
+    lon_coord = _get_xarray_longitude_name(ds)
+    ds.coords[lon_coord] = (ds.coords[lon_coord] + 180) % 360 - 180
+    ds = ds.sortby(ds[lon_coord])
+    x = ds.sel(lat=lats, lon=lons, method='nearest')
+    x = x.assign_coords(ID=station_ids)
+    ncdc = myfun(x, 'tempanomaly')
+    ncdc = ncdc.rename(columns={'value': 'NCDC'})
+
+    temp_df = reduce(lambda left, right: pd.merge(left, right), [hct4, giss, ncdc])
+    temp_df['temp_field'] = temp_df[['HadCRUT4', 'GISS', 'NCDC']].mean(axis=1)
+    temp_df = temp_df[['ID', 'year', 'month', 'temp_field']]
+
+    # Merge precipitation and temperature
+    combined_df = pd.merge(prec_df, temp_df)
+
+    combined_df = combined_df.reset_index()
+    combined_df = pd.melt(
+        combined_df,
+        id_vars=['ID', 'year', 'month'],
+        value_vars=['temp_field', 'precip_field']
+    )
+    # Save dataset
+    table = pa.Table.from_pandas(combined_df, preserve_index=False)
+    # table = pa.Table.from_pandas(combined_df)
+    # pq.write_table(table, os.path.join(outputdir, 'obs_field.parquet'))
+    pq.write_to_dataset(
+        table,
+        root_path = os.path.join(outputdir, 'observed-field'),
+        partition_cols = ['ID']
+    )
+
+
+def _observed_preprocessor(inputdir, outputdir, config):
+
+    input_filenames = _parse_observed_inputs(config, inputdir)
+    hadslp2r_filename = input_filenames['HadSLP2r']
+    gpcc_filename = input_filenames['GPCC']
+    hadcrut4_filename = input_filenames['HadCRUT4']
+    hadsst_filename = input_filenames['HadSST']
+    giss_filename = input_filenames['GISS']
+    ncdc_filename = input_filenames['NCDC']
+    with open(config, 'r') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
 
     # ####################### #
     # Sea-surface temperature
@@ -1009,33 +1123,33 @@ def _observed_preprocessor(inputdir, outputdir, config):
     uk_precip_df['uk_precip'] /= uk_precip_df['days_in_month']
     uk_precip_df = uk_precip_df.drop('days_in_month', axis=1)
 
-    # ################# #
-    # UK rainfall field
-    # ################# #
-    # import iris
-    # gpcc_filename = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data/GPCC/precip.mon.total.2.5x2.5.v2018.nc'
-    source = iris.load_cube(gpcc_filename, 'precip')
-    # target = iris.load_cube(hadslp2r_filename, 'slp')
-    # from esmvalcore import *
-    target = regional_stock_cube({
-        'start_longitude': 0,
-        'end_longitude': 355,
-        'step_longitude': 5,
-        'start_latitude': 90,
-        'end_latitude': -90,
-        'step_latitude': -5
-    })
-    ds_regrid = _regrid_cube(source, target)
-    # xr = xarray.DataArray.from_iris(ds_regrid)
-    # xr.to_netcdf("../../test.nc")
-    uk_precip_field_df = _extract_index(ds_regrid, 'uk_precip_field')
-    uk_precip_field_df['days_in_month'] = uk_precip_field_df.apply(
-        lambda x: monthrange(int(x['year']), int(x['month']))[1],
-        axis=1
-    )
-    cols = [nm for nm in uk_precip_field_df if nm.startswith('uk_precip_field')]
-    for col in cols:
-        uk_precip_field_df[col] /= uk_precip_field_df['days_in_month']
+    # # ################# #
+    # # UK rainfall field
+    # # ################# #
+    # # import iris
+    # # gpcc_filename = '/Users/simonmoulds/projects/decadal-flood-prediction/data-raw/observed_data/GPCC/precip.mon.total.2.5x2.5.v2018.nc'
+    # source = iris.load_cube(gpcc_filename, 'precip')
+    # # target = iris.load_cube(hadslp2r_filename, 'slp')
+    # # from esmvalcore import *
+    # target = regional_stock_cube({
+    #     'start_longitude': 0,
+    #     'end_longitude': 355,
+    #     'step_longitude': 5,
+    #     'start_latitude': 90,
+    #     'end_latitude': -90,
+    #     'step_latitude': -5
+    # })
+    # ds_regrid = _regrid_cube(source, target)
+    # # xr = xarray.DataArray.from_iris(ds_regrid)
+    # # xr.to_netcdf("../../test.nc")
+    # uk_precip_field_df = _extract_index(ds_regrid, 'uk_precip_field')
+    # uk_precip_field_df['days_in_month'] = uk_precip_field_df.apply(
+    #     lambda x: monthrange(int(x['year']), int(x['month']))[1],
+    #     axis=1
+    # )
+    # cols = [nm for nm in uk_precip_field_df if nm.startswith('uk_precip_field')]
+    # for col in cols:
+    #     uk_precip_field_df[col] /= uk_precip_field_df['days_in_month']
 
     # # ################### #
     # # Gridded UK rainfall #
@@ -1107,9 +1221,9 @@ def _observed_preprocessor(inputdir, outputdir, config):
     # Now merge all time series
     obs_df = reduce(
         lambda left, right: pd.merge(left, right, how='outer'),
-        [temp_df, nao_df, ea_df, europe_precip_df, uk_precip_df, uk_precip_field_df]
+        [temp_df, nao_df, ea_df, europe_precip_df, uk_precip_df]
     )
-    obs_df = obs_df[['year','month','nao','ea','amv','european_precip','uk_precip','uk_temp'] + [nm for nm in uk_precip_field_df if nm.startswith('uk_precip_field')]]
+    obs_df = obs_df[['year', 'month', 'nao', 'ea', 'amv', 'european_precip', 'uk_precip', 'uk_temp']]
     # Pivot to long format
     obs_df = obs_df.reset_index()
     obs_df = pd.melt(

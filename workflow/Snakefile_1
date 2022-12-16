@@ -18,6 +18,8 @@ ANALYSIS_DIRECTORY = os.path.join(EXP1_DIRECTORY, 'analysis')
 
 rule all:
     input:
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet', aggr = AGGR),
         expand('results/exp1/fig/{aggr_plot}', aggr_plot = AGGR_PLOT)
 
 rule select_stations:
@@ -55,16 +57,36 @@ rule get_discharge_data:
         Rscript {input.script} {input.stations} {params.outputdir}
         """
 
-rule nao_matching:
+rule prepare_input_data:
     input:
-        NRFA_DISCHARGE_DIRECTORY,
-        script='workflow/scripts/perform-nao-matching.R',
+        script='workflow/scripts/prepare-input-data.R',
         config=CONFIG,
         obs=OBSERVED_DATA_FILE,
         fcst=ENSEMBLE_FORECAST_DATA_DIRECTORY
     output:
         ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
-        ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet',
+        ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet'
+    params:
+        outputdir=ANALYSIS_DIRECTORY
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
+    shell:
+        """
+        Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
+        """
+
+rule nao_matching:
+    input:
+        NRFA_DISCHARGE_DIRECTORY,
+        script='workflow/scripts/perform-nao-matching.R',
+        config=CONFIG,
+        obs=ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
+        fcst=ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet'
+    output:
+        # ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
+        # ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet',
         ANALYSIS_DIRECTORY + '/{aggr}/ensemble_mean_fcst.parquet',
         ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet',
         ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet'

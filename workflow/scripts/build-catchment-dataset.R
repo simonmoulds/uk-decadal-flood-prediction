@@ -13,7 +13,7 @@ options(dplyr.summarise.inform = FALSE)
 ## ## TESTING
 ## config = read_yaml("config/config_2.yml")
 ## obspath = "results/intermediate/obs.parquet"
-## aggr_period = "yr2to5"
+## aggr_period = "yr2to5_lag"
 ## outputroot = "results/exp2"
 ## cwd = "workflow/scripts"
 
@@ -64,26 +64,26 @@ all_na <- sapply(obs, FUN=function(x) all(is.na(x))) %>% unname()
 obs <- obs[,!all_na]
 obs <- obs %>% pivot_longer(-init_year, names_to="variable", values_to="value")
 
-convert_to_local <- function(x, lat, lon) {
-  vars <- x$variable %>% unique() %>% sort()
-  field_vars <- grep("(N|S)\\d+\\.*\\d*_(E|W)\\d+\\.*\\d*", vars, value=TRUE)
-  field_vars_regex <- gsub(
-    "(N|S)\\d+\\.*\\d+_(E|W)\\d+\\.*\\d+",
-    "(N|S)\\\\d+\\\\.*\\\\d+_(E|W)\\\\d+\\\\.*\\\\d+", field_vars
-  ) %>% unique()
-  field_vars_regex <- paste0("^", field_vars_regex, "$")
-  x_local <- x
-  for (i in 1:length(field_vars_regex)) {
-    fv <- grep(field_vars_regex[i], field_vars, value=TRUE)
-    nearest_field_var <- select_nearest_grid_cell(lat, lon, fv)
-    new_name <-
-      gsub("_(N|S)\\d+\\.*\\d+_(E|W)\\d+\\.*\\d+", "", nearest_field_var)
-    x_local <- x_local %>%
-      mutate(across('variable', str_replace, nearest_field_var, new_name))
-  }
-  x_local <- x_local %>% filter(!variable %in% field_vars)
-  x_local
-}
+## convert_to_local <- function(x, lat, lon) {
+##   vars <- x$variable %>% unique() %>% sort()
+##   field_vars <- grep("(N|S)\\d+\\.*\\d*_(E|W)\\d+\\.*\\d*", vars, value=TRUE)
+##   field_vars_regex <- gsub(
+##     "(N|S)\\d+\\.*\\d+_(E|W)\\d+\\.*\\d+",
+##     "(N|S)\\\\d+\\\\.*\\\\d+_(E|W)\\\\d+\\\\.*\\\\d+", field_vars
+##   ) %>% unique()
+##   field_vars_regex <- paste0("^", field_vars_regex, "$")
+##   x_local <- x
+##   for (i in 1:length(field_vars_regex)) {
+##     fv <- grep(field_vars_regex[i], field_vars, value=TRUE)
+##     nearest_field_var <- select_nearest_grid_cell(lat, lon, fv)
+##     new_name <-
+##       gsub("_(N|S)\\d+\\.*\\d+_(E|W)\\d+\\.*\\d+", "", nearest_field_var)
+##     x_local <- x_local %>%
+##       mutate(across('variable', str_replace, nearest_field_var, new_name))
+##   }
+##   x_local <- x_local %>% filter(!variable %in% field_vars)
+##   x_local
+## }
 
 ## Load ensemble data
 ensemble_fcst = read_parquet(
@@ -98,6 +98,9 @@ ensemble_fcst_error = read_parquet(
   mutate(across(contains("init_year"), as.integer)) %>%
   arrange(source_id, member, init_year, init_year_matched)
 
+## ensemble_fcst_field = open_dataset("results/intermediate/ensemble-forecast-field/")
+## observed_field = open_dataset("results/intermediate/observed-field")
+
 ## Loop through catchments to create input datasets for statistical modelling
 cat(sprintf("Creating catchment dataset for accumulation period %s\n", label))
 pb = txtProgressBar(min=0, max=n_stations, initial=0)
@@ -107,8 +110,10 @@ for (i in 1:n_stations) {
   stn_id = station_ids[i]
   lat <- metadata %>% filter(id %in% stn_id) %>% `$`(latitude)
   lon <- metadata %>% filter(id %in% stn_id) %>% `$`(longitude)
-  ensemble_fcst_local <- convert_to_local(ensemble_fcst, lat, lon)
-  obs_local <- convert_to_local(obs, lat, lon)
+
+  ## ensemble_fcst_local <- ensemble_fcst_field %>% filter(ID %in% stn_id) %>% collect()
+  ## ensemble_fcst_local <- convert_to_local(ensemble_fcst, lat, lon)
+  ## obs_local <- convert_to_local(obs, lat, lon)
 
   ## NB season_year is the year of December in DJFM
   dis_djfm =
@@ -154,7 +159,7 @@ for (i in 1:n_stations) {
   ## Save observed data (observed discharge + observed climate indices)
   standardize = function(x) return((x - mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE))
   obs_aggregated =
-    obs_local %>%
+    obs %>%
     group_by(variable) %>%
     filter(init_year %in% study_period) %>%
     mutate(value=standardize(value)) %>%
@@ -178,7 +183,7 @@ for (i in 1:n_stations) {
     ## TODO ensure `value` in ensemble_fcst is anomaly
     ensemble_fcst_subset = create_ensemble_forecast(
       ensemble_fcst_error,
-      ensemble_fcst_local,
+      ensemble_fcst,
       vars = climate_vars,
       model_select = subset$models,
       project_select = subset$projects,

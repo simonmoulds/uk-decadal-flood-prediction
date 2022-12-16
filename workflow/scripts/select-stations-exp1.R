@@ -42,7 +42,7 @@ metadata =
   )
 
 ## Next identify stations included in the UKBN2 dataset
-ukbn2_stations <- read_csv(
+ukbn_stations <- read_csv(
   file.path(
     inputdir,
     config$aux_data$ukbn, "UKBN_Station_List_vUKBN2.0_1.csv"
@@ -50,14 +50,24 @@ ukbn2_stations <- read_csv(
   show_col_types = FALSE
 )
 ## Allow benchmark scores of 1 (caution) and 2 (suitable)
-ukbn2_stations <- ukbn2_stations[ukbn2_stations$High_Score >= 1, "Station"]
-ukbn2_stations <- unlist(ukbn2_stations) %>% unname()
+ukbn_stations <- ukbn_stations[ukbn_stations$High_Score >= 1, "Station"]
+ukbn_stations <- unlist(ukbn_stations) %>% unname()
 
 ## Now filter UKBN2 stations
-metadata = metadata %>% filter(id %in% ukbn2_stations)
+metadata = metadata %>% filter(id %in% ukbn_stations)
 stations <- metadata$id %>% as.character()
 
-## Write output
-conn <- file(outputfile)
-writeLines(stations, conn)
-close(conn)
+## Now filter UKBN stations
+metadata <- metadata %>% filter(id %in% ukbn_stations)
+ukbn_stations <-
+  metadata %>%
+  dplyr::select(id, latitude, longitude) %>%
+  mutate(source = "UKBN") %>%
+  setNames(c("id", "lat", "lon", "source"))
+
+write_csv(ukbn_stations, outputfile)
+
+## ## Write output
+## conn <- file(outputfile)
+## writeLines(stations, conn)
+## close(conn)

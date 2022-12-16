@@ -78,33 +78,48 @@ obs_aggregation_period_label = aggregation_period_label
 ## ####################################################### ##
 ## ####################################################### ##
 
-## In this analysis we have many different models, so we need to load data slighly differently
+## In this analysis we have many different models
+## so we need to load data slighly differently
 models <- sapply(config$modelling, FUN=function(x) x$name)
 predictand <- sapply(config$modelling, FUN=function(x) x$predictand)
 aggregation_period <- sapply(config$modelling, FUN=function(x) x$aggregation_period)
 
 all_skill_scores <- list()
+all_predictions <- list()
 for (i in 1:length(models)) {
-  x <- load_skill_scores(config, models[i], aggregation_period[i])
-  x <- x %>% mutate(experiment = models[i])
-  all_skill_scores[[i]] <- x
+  skill_scores_i <- load_skill_scores(config, models[i], aggregation_period[i])
+  skill_scores_i <- skill_scores_i %>% mutate(experiment = models[i])
+  predictions_i <- load_model_predictions(config, models[i], aggregation_period[i])
+  cor <- predictions_i %>%
+    group_by(ID, subset, model) %>%
+    summarize(R=cor.test(observations, Q50)$estimate)
+  skill_scores_i <- skill_scores_i %>% left_join(cor, by = c("ID", "subset", "model"))
+  predictions_i <- predictions_i %>% mutate(experiment = models[i])
+  all_skill_scores[[i]] <- skill_scores_i
+  all_predictions[[i]] <- predictions_i
 }
 
-obs_depvar = "Q_95_centred_obs"
-exp_depvar = "Q_95_centred_exp"
-obs_expm = "observed_Q95"
-exp_expm = "hindcast_Q95"
+names(all_skill_scores) <- models
+names(all_predictions) <- models
+
+## skill_scores <- do.call("rbind", all_skill_scores)
+## predictions <- do.call("rbind", all_predictions)
+station_ids <- skill_scores$ID %>% unique()
+
+## Compute R value
+
+## obs_depvar = "Q_95_centred_obs"
+## exp_depvar = "Q_95_centred_exp"
+## obs_expm = "observed_Q95"
+## exp_expm = "hindcast_Q95"
 ## obs_depvar = "Q_max_centred_obs"
 ## exp_depvar = "Q_max_centred_exp"
 ## obs_expm = "observed_QMAX"
 ## exp_expm = "hindcast_QMAX"
 
-## Load model skill scores for observed and hindcast experiments
-obs_skill_scores <- load_skill_scores(config, obs_expm, obs_aggregation_period)
-skill_scores <- load_skill_scores(config, exp_expm, aggregation_period)
-station_ids <- skill_scores$ID %>% unique()
-
-stop()
+## ## Load model skill scores for observed and hindcast experiments
+## obs_skill_scores <- load_skill_scores(config, obs_expm, obs_aggregation_period)
+## skill_scores <- load_skill_scores(config, exp_expm, aggregation_period)
 
 ## ## Load model fit metrics for hindcast experiment
 ## fit <- load_model_fit(config, "hindcast", aggregation_period) %>% mutate(kurtosis = kurtosis - 3)
@@ -149,177 +164,177 @@ strip_label_size = 8
 ## ####################################################### ##
 ## ####################################################### ##
 
-## Find out which observed stations are positive
-obs_skill_subset <-
-  obs_skill_scores %>%
-  ## filter(model %in% c("P", "PT")) %>%
-  mutate(model = droplevels(model)) %>%
-  group_by(ID) %>%
-  filter(crps_ens_fcst==min(crps_ens_fcst))
+## ## Find out which observed stations are positive
+## obs_skill_subset <-
+##   skill_scores %>%
+##   filter(subset %in% "observed") %>%
+##   mutate(model = droplevels(model)) %>%
+##   group_by(ID, experiment) %>%
+##   filter(crps_ens_fcst==min(crps_ens_fcst))
 
-obs_ids <- obs_skill_subset %>% filter(crpss>0) %>% `$`(ID)
+## ## obs_ids <- obs_skill_subset %>% filter(crpss>0) %>% `$`(ID)
 
-## Median skill using observed predictors
-obs_skill_subset %>% `$`(crpss) %>% median()
-obs_skill_subset %>% filter(crpss > 0) %>% `$`(crpss) %>% median()
+## ## ## Median skill using observed predictors
+## ## obs_skill_subset %>% `$`(crpss) %>% median()
+## ## obs_skill_subset %>% filter(crpss > 0) %>% `$`(crpss) %>% median()
 
-full_ens_ids <-
-  skill_scores %>%
-  ## filter(model %in% c("P", "PT") & subset %in% "full") %>%
-  filter(subset %in% "full") %>%
-  mutate(model = droplevels(model)) %>%
-  group_by(ID) %>%
-  filter(crps_ens_fcst==min(crps_ens_fcst)) %>%
-  filter(crpss>0) %>% `$`(ID)
+## full_ens_ids <-
+##   skill_scores %>%
+##   ## filter(model %in% c("P", "PT") & subset %in% "full") %>%
+##   filter(subset %in% "full") %>%
+##   mutate(model = droplevels(model)) %>%
+##   group_by(ID) %>%
+##   filter(crps_ens_fcst==min(crps_ens_fcst)) %>%
+##   filter(crpss>0) %>% `$`(ID)
 
-nao_matched_ids <-
-  skill_scores %>%
-  ## filter(model %in% c("P", "PT") & subset %in% "best_n") %>%
-  filter(subset %in% "best_n") %>%
-  mutate(model = droplevels(model)) %>%
-  group_by(ID) %>%
-  filter(crps_ens_fcst==min(crps_ens_fcst)) %>%
-  filter(crpss>0) %>% `$`(ID)
+## nao_matched_ids <-
+##   skill_scores %>%
+##   ## filter(model %in% c("P", "PT") & subset %in% "best_n") %>%
+##   filter(subset %in% "best_n") %>%
+##   mutate(model = droplevels(model)) %>%
+##   group_by(ID) %>%
+##   filter(crps_ens_fcst==min(crps_ens_fcst)) %>%
+##   filter(crpss>0) %>% `$`(ID)
 
-## Percent full ensemble IDs with +ve skill in observed IDs with +ve skill
-sum(obs_ids %in% full_ens_ids) / length(obs_ids)
-sum(obs_ids %in% nao_matched_ids) / length(obs_ids)
+## ## Percent full ensemble IDs with +ve skill in observed IDs with +ve skill
+## sum(obs_ids %in% full_ens_ids) / length(obs_ids)
+## sum(obs_ids %in% nao_matched_ids) / length(obs_ids)
 
-## Overall statistic
-## % stations with +ve MSSS
-stat <-
-  skill_scores %>%
-  filter(period %in% aggregation_period & model %in% c("P", "PT")) %>%
-  group_by(ID, subset) %>%
-  filter(crps_ens_fcst==min(crps_ens_fcst)) %>%
-  ungroup() %>%
-  group_by(subset) %>%
-  summarize(pct_positive = sum(crpss > 0) / n() * 100)
+## ## Overall statistic
+## ## % stations with +ve MSSS
+## stat <-
+##   skill_scores %>%
+##   filter(period %in% aggregation_period & model %in% c("P", "PT")) %>%
+##   group_by(ID, subset) %>%
+##   filter(crps_ens_fcst==min(crps_ens_fcst)) %>%
+##   ungroup() %>%
+##   group_by(subset) %>%
+##   summarize(pct_positive = sum(crpss > 0) / n() * 100)
 
-## Time series plot
-skill_scores_subset =
-  skill_scores %>%
-  filter(subset %in% c("best_n", "full")) %>%
-  filter(period %in% aggregation_period) %>%
-  mutate(skill = !!sym(skill_measure)) %>%
-  dplyr::select(-all_of(all_skill_measures)) %>%
-  pivot_wider(names_from = subset, values_from = skill) %>%
-  mutate(skill_diff = best_n - full)
+## ## Time series plot
+## skill_scores_subset =
+##   skill_scores %>%
+##   filter(subset %in% c("best_n", "full")) %>%
+##   filter(period %in% aggregation_period) %>%
+##   mutate(skill = !!sym(skill_measure)) %>%
+##   dplyr::select(-all_of(all_skill_measures)) %>%
+##   pivot_wider(names_from = subset, values_from = skill) %>%
+##   mutate(skill_diff = best_n - full)
 
-skill_scores_subset <-
-  skill_scores_subset %>% ungroup() %>%
-  left_join(
-    (skill_scores %>%
-     filter(subset %in% "best_n") %>%
-     filter(period %in% aggregation_period) %>%
-     mutate(skill = !!sym(skill_measure)) %>%
-     dplyr::select(model, ID, period, crps_ens_fcst, skill)),
-    by = c("model", "ID", "period")
-  )
-
-skill =
-  skill_scores_subset %>%
-  ## filter(model %in% c("P", "PT")) %>%
-  mutate(model = droplevels(model)) %>%
-  group_by(ID) %>%
-  filter(crps_ens_fcst == min(crps_ens_fcst)) %>%
-  arrange(desc(best_n))
+## skill_scores_subset <-
+##   skill_scores_subset %>% ungroup() %>%
+##   left_join(
+##     (skill_scores %>%
+##      filter(subset %in% "best_n") %>%
+##      filter(period %in% aggregation_period) %>%
+##      mutate(skill = !!sym(skill_measure)) %>%
+##      dplyr::select(model, ID, period, crps_ens_fcst, skill)),
+##     by = c("model", "ID", "period")
+##   )
 
 ## skill =
 ##   skill_scores_subset %>%
-##   filter(model %in% c("P", "PT")) %>%
+##   ## filter(model %in% c("P", "PT")) %>%
+##   mutate(model = droplevels(model)) %>%
 ##   group_by(ID) %>%
-##   filter(skill_diff == max(skill_diff)) %>%
+##   filter(crps_ens_fcst == min(crps_ens_fcst)) %>%
 ##   arrange(desc(best_n))
 
-ids_best = head(skill, n=20)$ID
-models_best = as.character(head(skill, n=20)$model)
+## ## skill =
+## ##   skill_scores_subset %>%
+## ##   filter(model %in% c("P", "PT")) %>%
+## ##   group_by(ID) %>%
+## ##   filter(skill_diff == max(skill_diff)) %>%
+## ##   arrange(desc(best_n))
 
-predictions <- load_model_predictions(config, exp_expm, aggregation_period)
-simulations <- load_model_simulations(config, exp_expm, aggregation_period)
+## ids_best = head(skill, n=20)$ID
+## models_best = as.character(head(skill, n=20)$model)
 
-## predictions = open_dataset(
-##   file.path(outputroot, "analysis", "hindcast", "gamlss", aggregation_period, "prediction")
-## ) %>%
-##   collect() %>%
-##   filter(subset %in% c("full", "best_n")) %>%
-##   mutate(subset = ifelse(subset == "best_n", "NAO-matched ensemble", "Full ensemble"))
+## predictions <- load_model_predictions(config, exp_expm, aggregation_period)
+## simulations <- load_model_simulations(config, exp_expm, aggregation_period)
 
-## model_levels <- unique(predictions$model)
-## model_labels <- model_levels %>% gsub("_", "", .)
-## predictions <- predictions %>% mutate(model = factor(model, levels = model_levels, labels = model_labels))
-predictions <- predictions %>% mutate(obs = !!sym(obs_depvar), exp = !!sym(exp_depvar))
-simulations <- simulations %>% mutate(obs = !!sym(obs_depvar), exp = !!sym(exp_depvar))
+## ## predictions = open_dataset(
+## ##   file.path(outputroot, "analysis", "hindcast", "gamlss", aggregation_period, "prediction")
+## ## ) %>%
+## ##   collect() %>%
+## ##   filter(subset %in% c("full", "best_n")) %>%
+## ##   mutate(subset = ifelse(subset == "best_n", "NAO-matched ensemble", "Full ensemble"))
 
-## library(viridis)
-## p1 <- predictions %>%
-## p1 <- simulations %>%
-##   filter(test_year %in% 1985) %>%
-##   filter(ID %in% ids_best[1] & model %in% models_best[1]) %>%
-##   myplotfun66()
+## ## model_levels <- unique(predictions$model)
+## ## model_labels <- model_levels %>% gsub("_", "", .)
+## ## predictions <- predictions %>% mutate(model = factor(model, levels = model_levels, labels = model_labels))
+## predictions <- predictions %>% mutate(obs = !!sym(obs_depvar), exp = !!sym(exp_depvar))
+## simulations <- simulations %>% mutate(obs = !!sym(obs_depvar), exp = !!sym(exp_depvar))
 
-myplotfun_ts <- function(simulation, prediction, cutoff) {
-  p <- ggplot(data=simulation, aes(x=year))+
-    theme_bw()+ xlab("")+
-    ylab(bquote('DJFM MAX ('*m^3*'/'*s*')'))+ #'/'*km^2*')'))+ #instantaneous peak flow
-    geom_ribbon(aes(ymin=Q01, ymax=Q99),  fill="ivory2")+
-    geom_line(aes(y=Q01),col="grey50", size=0.5)+#lower is darker
-    geom_line(aes(y=Q95),col="grey50", size=0.5)+
-    geom_line(aes(y=Q98),col="red", size=0.5)+
-    geom_line(aes(y=Q99),col="grey50", size=0.5)+
-    geom_line(aes(y=Q50),col="blue",size=1)+
-    geom_point(aes(y=obs),pch=21, color="black", fill="grey50", size=2)+
+## ## library(viridis)
+## ## p1 <- predictions %>%
+## ## p1 <- simulations %>%
+## ##   filter(test_year %in% 1985) %>%
+## ##   filter(ID %in% ids_best[1] & model %in% models_best[1]) %>%
+## ##   myplotfun66()
 
-    # Add the predictions
-    geom_ribbon(data=prediction, aes(x=year, ymin=Q01, ymax=Q99),  fill="cornsilk")+
-    geom_line(data=prediction, aes(y=Q01),col="grey50", size=0.5, linetype="dashed")+#lower is darker
-    geom_line(data=prediction, aes(y=Q95),col="grey50", size=0.5, linetype="dashed")+
-    geom_line(data=prediction, aes(y=Q98),col="red", size=0.5, linetype="dashed")+
-    geom_line(data=prediction, aes(y=Q99),col="grey50", size=0.5, linetype="dashed")+
-    geom_line(data=prediction, aes(y=Q50),col="blue",size=1)+
-    geom_point(data=prediction, aes(y=obs),pch=21, color="black", fill="grey50", size=2)+
-    scale_x_continuous(lim=c(1886,2024),
-                       breaks=seq(1850,2020,10),
-                       expand=c(0,0)) +
-    coord_cartesian(xlim=c(1967,2015))
-    ## coord_cartesian(ylim=c(0,100), xlim=c(1967,2005))+
+## myplotfun_ts <- function(simulation, prediction, cutoff) {
+##   p <- ggplot(data=simulation, aes(x=year))+
+##     theme_bw()+ xlab("")+
+##     ylab(bquote('DJFM MAX ('*m^3*'/'*s*')'))+ #'/'*km^2*')'))+ #instantaneous peak flow
+##     geom_ribbon(aes(ymin=Q01, ymax=Q99),  fill="ivory2")+
+##     geom_line(aes(y=Q01),col="grey50", size=0.5)+#lower is darker
+##     geom_line(aes(y=Q95),col="grey50", size=0.5)+
+##     geom_line(aes(y=Q98),col="red", size=0.5)+
+##     geom_line(aes(y=Q99),col="grey50", size=0.5)+
+##     geom_line(aes(y=Q50),col="blue",size=1)+
+##     geom_point(aes(y=obs),pch=21, color="black", fill="grey50", size=2)+
 
-    ## ## Add some annotations
-    ## annotate(geom ='text', label = "Red line indicates nonstationary 50-y flood",
-    ##          x = 1970, y = 80,  size=4.5, col="black", hjust = 0)+#hjust 0 is left align
-    ## annotate(geom ='text', label = "in every year",
-    ##          x = 1970, y = 75,  size=4.5, col="black", hjust = 0)+
-    ## theme(legend.position = c(0.2, 0.8))
-  p
-}
+##     # Add the predictions
+##     geom_ribbon(data=prediction, aes(x=year, ymin=Q01, ymax=Q99),  fill="cornsilk")+
+##     geom_line(data=prediction, aes(y=Q01),col="grey50", size=0.5, linetype="dashed")+#lower is darker
+##     geom_line(data=prediction, aes(y=Q95),col="grey50", size=0.5, linetype="dashed")+
+##     geom_line(data=prediction, aes(y=Q98),col="red", size=0.5, linetype="dashed")+
+##     geom_line(data=prediction, aes(y=Q99),col="grey50", size=0.5, linetype="dashed")+
+##     geom_line(data=prediction, aes(y=Q50),col="blue",size=1)+
+##     geom_point(data=prediction, aes(y=obs),pch=21, color="black", fill="grey50", size=2)+
+##     scale_x_continuous(lim=c(1886,2024),
+##                        breaks=seq(1850,2020,10),
+##                        expand=c(0,0)) +
+##     coord_cartesian(xlim=c(1967,2015))
+##     ## coord_cartesian(ylim=c(0,100), xlim=c(1967,2005))+
 
-## acc = predictions %>% group_by(ID, subset, model) %>% summarize(acc=cor.test(observations, Q50)$estimate) %>% arrange(desc(acc))
-## ids_best = acc$ID[1:5]
-## models_best = acc$model[1:5]
+##     ## ## Add some annotations
+##     ## annotate(geom ='text', label = "Red line indicates nonstationary 50-y flood",
+##     ##          x = 1970, y = 80,  size=4.5, col="black", hjust = 0)+#hjust 0 is left align
+##     ## annotate(geom ='text', label = "in every year",
+##     ##          x = 1970, y = 75,  size=4.5, col="black", hjust = 0)+
+##     ## theme(legend.position = c(0.2, 0.8))
+##   p
+## }
 
-cutoff <- 1991
-sim <- simulations %>%
-  filter(test_year %in% cutoff) %>%
-  filter(ID %in% ids_best[1] & model %in% models_best[1] & subset %in% "best_n")
-pred <- predictions %>%
-  filter(ID %in% ids_best[1] & model %in% models_best[1] & subset %in% "best_n") %>%
-  filter(year >= cutoff)
+## ## acc = predictions %>% group_by(ID, subset, model) %>% summarize(acc=cor.test(observations, Q50)$estimate) %>% arrange(desc(acc))
+## ## ids_best = acc$ID[1:5]
+## ## models_best = acc$model[1:5]
 
-p <- myplotfun_ts(sim, pred, cutoff)
+## cutoff <- 1991
+## sim <- simulations %>%
+##   filter(test_year %in% cutoff) %>%
+##   filter(ID %in% ids_best[1] & model %in% models_best[1] & subset %in% "best_n")
+## pred <- predictions %>%
+##   filter(ID %in% ids_best[1] & model %in% models_best[1] & subset %in% "best_n") %>%
+##   filter(year >= cutoff)
 
-skill_scores_subset =
-  skill_scores %>%
-  ## filter(model %in% c("P", "PT")) %>% #, "NAOPT")) %>%
-  mutate(model = droplevels(model)) %>%
-  filter(subset %in% "best_n", period %in% aggregation_period) %>%
-  mutate(period = factor(period, levels = aggregation_period, labels = aggregation_period_label)) %>%
-  mutate(skill = !!sym(skill_measure))
+## p <- myplotfun_ts(sim, pred, cutoff)
 
-skill = myfun(skill_scores_subset)
+## skill_scores_subset =
+##   skill_scores %>%
+##   ## filter(model %in% c("P", "PT")) %>% #, "NAOPT")) %>%
+##   mutate(model = droplevels(model)) %>%
+##   filter(subset %in% "best_n", period %in% aggregation_period) %>%
+##   mutate(period = factor(period, levels = aggregation_period, labels = aggregation_period_label)) %>%
+##   mutate(skill = !!sym(skill_measure))
 
-## Let's look at ACC
-acc <- predictions %>% group_by(ID, subset, model) %>% summarize(acc=cor.test(observations, Q50)$estimate) %>% arrange(desc(acc))
-skill <- skill %>% left_join(acc, by = c("ID", "subset", "model")) %>% mutate(skill=acc)
+## skill = myfun(skill_scores_subset)
+
+## ## Let's look at ACC
+## acc <- predictions %>% group_by(ID, subset, model) %>% summarize(acc=cor.test(observations, Q50)$estimate) %>% arrange(desc(acc))
+## skill <- skill %>% left_join(acc, by = c("ID", "subset", "model")) %>% mutate(skill=acc)
 
 myplotfun1 <- function(x, legend_title = "ACC") {
   rdbu_pal = RColorBrewer::brewer.pal(12, "RdBu")
@@ -342,7 +357,7 @@ myplotfun1 <- function(x, legend_title = "ACC") {
       lwd = 0.1,
       alpha = 0.8
     ) +
-    facet_wrap(. ~ period, ncol = 1) +
+    ## facet_wrap(. ~ period, ncol = 1) +
     coord_sf(
       xlim = c(-8, 2),
       ylim = c(50, 59),
@@ -447,12 +462,28 @@ myplotfun1 <- function(x, legend_title = "ACC") {
   p
 }
 
-p <- myplotfun1(skill, "R")
+skill1 <-
+  ## all_skill_scores$hindcast_POT %>%
+  all_skill_scores$hindcast_POT %>%
+  mutate(model = droplevels(model)) %>%
+  group_by(ID) %>%
+  filter(crps_ens_fcst == min(crps_ens_fcst))
+skill1 <- gauge_stns %>% left_join(skill1)
 
-## p1 <- p1 + labs(title="DJFM QMAX") + theme(plot.title = element_text(size = 8, margin = margin(0,0,1,0, unit="pt")))
-## p2 <- p2 + labs(title="DJFM Q95") + theme(plot.title = element_text(size = 8, margin = margin(0,0,1,0, unit="pt")))
-## p <- p1 + p2 + plot_layout(ncol=2) + plot_layout(guides="collect") & theme(legend.position = "bottom")
-## ggsave("results/exp2/fig/yr2/fig_map.png", width=5, height=5, units="in")
+skill2 <-
+  all_skill_scores$hindcast_Q95 %>%
+  mutate(model = droplevels(model)) %>%
+  group_by(ID) %>%
+  filter(crps_ens_fcst == min(crps_ens_fcst))
+skill2 <- gauge_stns %>% left_join(skill2)
+
+p1 <- myplotfun1(skill1 %>% mutate(skill = R), "R")
+p2 <- myplotfun1(skill2 %>% mutate(skill = R), "R")
+
+p1 <- p1 + labs(title="DJFM POT [Q99]") + theme(plot.title = element_text(size = 8, margin = margin(0,0,1,0, unit="pt")))
+p2 <- p2 + labs(title="DJFM Q95") + theme(plot.title = element_text(size = 8, margin = margin(0,0,1,0, unit="pt")))
+p <- p1 + p2 + plot_layout(ncol=2) + plot_layout(guides="collect") & theme(legend.position = "bottom")
+ggsave("results/exp2/fig/yr2/fig_map.png", width=5, height=5, units="in")
 
 stop()
 

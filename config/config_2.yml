@@ -21,7 +21,7 @@ ensemble_data:
   root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
   cmip5:
     subdirectory:
-      - esmvaltool_output/recipe_nao_cmip5_autogen_20220212_110715
+      - esmvaltool_output/recipe_s20_cmip5_autogen_20221207_210618
     grid_subdirectory:
       - esmvaltool_output/recipe_s20_grid_cmip5_autogen_20220622_133817
     models:
@@ -32,7 +32,7 @@ ensemble_data:
       - MPI-ESM-LR
   cmip6:
     subdirectory:
-      - esmvaltool_output/recipe_nao_cmip6_autogen_20220212_123032
+      - esmvaltool_output/recipe_s20_cmip6_autogen_20221207_223325
       - ncar_prec_data/recipe1
     grid_subdirectory:
       - esmvaltool_output/recipe_s20_grid_cmip6_autogen_20220622_153338
@@ -52,6 +52,8 @@ aux_data:
     subdirectory: 8344e4f3-d2ea-44f5-8afa-86d2987543a9
   ukbn:
     subdirectory: UKBN
+  grdc:
+    subdirectory: GRDC
 
 subset:
   - name: full

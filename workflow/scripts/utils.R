@@ -201,9 +201,12 @@ parse_config_io <- function(config, input_data_root) {
        ## modelling = modelling_section)
 }
 
-get_obs <- function(filename, study_period, start = 2, end = 9) {
+get_obs <- function(filename,
+                    study_period,
+                    start = 2,
+                    end = 9) {
   ## Read raw observed data
-  obs_raw = read_parquet(filename) #file.path(dir, "obs.parquet"))
+  obs_raw = read_parquet(filename)
   ## Pivot from long to wide
   obs_raw = obs_raw %>% pivot_wider(names_from=variable, values_from=value)
   ## Assign a reference year to DJFM and select this season
@@ -212,6 +215,16 @@ get_obs <- function(filename, study_period, start = 2, end = 9) {
     filter(month %in% c(12, 1, 2, 3)) %>%
     group_by(season_year) %>%
     filter(n() == 4) # Only complete DJFM seasons
+
+  ## ## TESTING
+  ## winter <- which.min(months) != 1
+  ## next_year_months <- seq(min(months), months[length(months)])
+  ## obs = obs_raw %>%
+  ##   filter(month %in% c(12, 1, 2, 3)) #%>%
+  ##   mutate(season_year = ifelse(month %in% c(1,2,3), year-1, year)) %>%
+  ##   group_by(season_year) %>%
+  ##   filter(n() == 4) # Only complete DJFM seasons
+  ## ## END TESTING
 
   ## Compute average seasonal values
   vars = c("nao", "ea", "amv", "european_precip", "uk_precip", "uk_temp")
@@ -267,20 +280,166 @@ get_obs <- function(filename, study_period, start = 2, end = 9) {
   obs
 }
 
-get_hindcast_data <- function(dataset, study_period, lead_times) {
-  ensemble_fcst_raw =
-    open_dataset(dataset) %>%
+get_obs_new <- function(dataset,
+                        study_period,
+                        start = 2,
+                        end = 9,
+                        vars = c("nao"),
+                        months = c(12, 1, 2, 3)) {
+
+  ## Read raw observed data
+  ## obs_raw = read_parquet(filename)
+  ## Pivot from long to wide
+  obs_raw = dataset %>% pivot_wider(names_from=variable, values_from=value)
+  ## Select season
+  obs <- obs_raw %>% filter(month %in% months)
+  if (which.min(months) != 1) {
+    ## This adjusts season_year if the season covers two years (e.g.DJF)
+    next_year_months <- seq(min(months), months[length(months)])
+    obs <-
+      obs %>%
+      mutate(season_year = ifelse(month %in% next_year_months, year-1, year))
+  } else {
+    obs <- obs %>% mutate(season_year = year)
+  }
+  ## Restrict to complete seasons
+  obs <- obs %>% group_by(season_year) %>% filter(n() == length(months))
+
+  ## Compute average seasonal values
+  obs = obs %>% summarize(across(starts_with(vars), mean))
+
+  ## Calculate decadal means [function defined in `utils.R`]
+  ## N.B. in this data frame season year is the year in which
+  ## the start of the season falls [i.e. for DJFM it is the
+  ## year in which December falls
+  obs = rolling_fun(
+    yrs = obs$season_year,
+    data = obs,
+    cols = vars,
+    funs = mean,
+    start = start, end = end
+  )
+  ## The result of the above function is that the value for each
+  ## initialization year is the mean of the observed values for
+  ## 2-9 years ahead. For example, the value assigned to the 1960
+  ## initialization year is the average value for years 1961 to 1968.
+  ## This essentially makes the observations comparable with the
+  ## forecasts.
+
+  ## Filter study period
+  obs = obs %>% filter(init_year %in% study_period)
+  compute_anomaly = function(x) x - mean(x, na.rm = TRUE)
+  obs =
+    obs %>%
+    mutate(across(all_of(vars), compute_anomaly)) %>%
+    ungroup()
+
+  ## Convert to long format
+  obs =
+    obs %>%
+    pivot_longer(starts_with(vars), names_to = "variable", values_to = "obs")
+  obs
+}
+
+ensemble_fcst_unit_conversion <- function(x) {
+  x <- x %>%
+    mutate(across(matches("^nao$"), function(x) x / 100)) %>%
+    mutate(across(matches("^ea$"), function(x) x / 100)) %>%
+    mutate(across(contains("precip"), function(x) x * 60 * 60 * 24))
+  x
+}
+
+get_hindcast_data_new <- function(dataset,
+                                  study_period,
+                                  lead_times,
+                                  vars,
+                                  months) {
+
+  ## ens_fcst_raw = dataset %>% pivot_wider(names_from=variable, values_from=value)
+  ## Select season
+  ens_fcst <- dataset %>% filter(month %in% months)
+  if (which.min(months) != 1) {
+    ## This adjusts season_year if the season covers two years (e.g.DJF)
+    next_year_months <- seq(min(months), months[length(months)])
+    ens_fcst <-
+      ens_fcst %>%
+      mutate(season_year = ifelse(month %in% next_year_months, year-1, year))
+  } else {
+    ens_fcst <- ens_fcst %>% mutate(season_year = year)
+  }
+  ens_fcst <- ens_fcst %>% collect()
+  ens_fcst <- ens_fcst %>% pivot_wider(names_from=variable, values_from=value)
+  ## Restrict to complete seasons
+  group_vars <- c("season_year", "project", "mip", "source_id", "member", "init_year")
+  ens_fcst <- ens_fcst %>%
+    group_by_at(group_vars) %>%
+    filter(n() == length(months)) %>%
+    arrange(init_year, member, source_id, year, month)
+
+  ## ## Compute average seasonal values
+  ## ens_fcst <- ens_fcst %>% group_by_at(group_vars) %>% summarize(value = mean(value), n = n())
+
+  ens_fcst <- ens_fcst %>% summarize(across(starts_with(vars), mean))
+  ens_fcst <-
+    ens_fcst %>%
+    mutate(lead_time = season_year - init_year + 1) %>%
+    filter(lead_time %in% lead_times)
+
+  ## Select data for the study period
+  ens_fcst_complete <- ens_fcst %>% filter(init_year %in% study_period)
+
+  ## Do unit conversion
+  ens_fcst_complete <- ens_fcst_complete %>% ensemble_fcst_unit_conversion()
+
+  ## Aggregate over lead times
+  group_vars = c("project", "mip", "source_id", "member", "init_year")
+  ens_fcst_complete <-
+    ens_fcst_complete %>%
+    group_by_at(group_vars) %>%
+    summarize(across(starts_with(vars), mean))
+
+  ## Complete anomalies over the study period
+  compute_anomaly <- function(x) x - mean(x, na.rm = TRUE)
+  anomaly_group_vars <- c("source_id", "member")
+  ens_fcst_complete <-
+    ens_fcst_complete %>%
+    group_by_at(anomaly_group_vars) %>%
+    mutate(across(starts_with(vars), compute_anomaly)) %>%
+    ungroup()
+
+  ## Pivot longer
+  ens_fcst_complete <-
+    ens_fcst_complete %>%
+    pivot_longer(-all_of(group_vars), names_to="variable", values_to="value")
+  ens_fcst_complete
+}
+
+get_hindcast_data <- function(dataset,
+                              study_period,
+                              lead_times,
+                              all_ids = TRUE,
+                              id=NA) {
+
+  ensemble_fcst_raw = open_dataset(dataset)
+  if (!all_ids & !is.na(id)) {
+    ensemble_fcst_raw <-
+      ensemble_fcst_raw %>%
+      filter(ID %in% id)
+  }
+  ensemble_fcst_raw <-
+    ensemble_fcst_raw %>%
+    ## open_dataset(dataset) %>%
     mutate(lead_time = season_year - init_year) %>%
     filter(lead_time %in% lead_times) %>%
     collect()
   ## Pivot from long to wide format
-  ensemble_fcst_raw = ensemble_fcst_raw %>%
+  ensemble_fcst_raw <- ensemble_fcst_raw %>%
     pivot_wider(names_from=variable, values_from=value)
   ## Unit conversion
-  ensemble_fcst_raw =
+  ensemble_fcst_raw <-
     ensemble_fcst_raw %>%
-    mutate(nao = nao / 100) %>%
-    mutate(ea = ea / 100) %>%
+    mutate(across(matches("^nao$"), function(x) x / 100)) %>%
+    mutate(across(matches("^ea$"), function(x) x / 100)) %>%
     mutate(across(starts_with("european_precip"), function(x) x * 60 * 60 * 24)) %>%
     mutate(across(starts_with("uk_precip"), function(x) x * 60 * 60 * 24))
     ## mutate(european_precip = european_precip * 60 * 60 * 24) %>%
@@ -1203,8 +1362,8 @@ load_model_predictions <- function(config, experiment, aggregation_period) {
   predictions = open_dataset(
     file.path(outputroot, "analysis", experiment, "gamlss", aggregation_period, "prediction")
   ) %>%
-    collect() %>%
-    filter(subset %in% c("full", "best_n")) #%>%
+    collect() #%>%
+    ## filter(subset %in% c("full", "best_n")) #%>%
     ## mutate(subset = ifelse(subset == "best_n", "NAO-matched ensemble", "Full ensemble"))
   model_levels <- unique(predictions$model)
   model_labels <- model_levels %>% gsub("_", "", .)

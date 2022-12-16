@@ -20,10 +20,14 @@ source(file.path(cwd, "utils.R"))
 metadata = catalogue()
 
 names(metadata) = names(metadata) %>% gsub("-", "_", .)
-conn <- file(stations_file)
-station_ids <- readLines(conn)
-station_ids <- as.integer(station_ids)
-close(conn)
+
+## conn <- file(stations_file)
+## station_ids <- readLines(conn)
+## station_ids <- as.integer(station_ids)
+## close(conn)
+stations <- read_csv(stations_file)
+station_ids <- stations %>% filter(source %in% "UKBN") %>% `$`(id)
+
 metadata <- metadata %>% filter(id %in% station_ids)
 ## metadata$id <- as.numeric(metadata$id)
 station_ids <- metadata$id

@@ -28,9 +28,6 @@ rule obs_input:
         time = "00:30:00",
         mem_mb = 4000,
         partition = "short"
-    # FIXME https://github.com/snakemake/snakemake/issues/1811
-    # script:
-    #     "scripts/prepare-modelled-input-data.py"
     shell:
         """
         python {input.script} -i {config[input_data_root]} -o {params.outputdir} --config {input.config}

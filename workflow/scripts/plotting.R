@@ -1512,10 +1512,10 @@ myplotfun_nao_matched <- function(full_fcst, ensemble_fcst) {
   ## cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
   cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")[2:1]
   p2 = ggplot() +
-    geom_line(
-      data = plotdata %>% filter(statistic %in% c("ens_mean_var_adj")),
-      aes(x = init_year, y = value), color = "#F8766D", size = 0.25
-    ) +
+    ## geom_line(
+    ##   data = plotdata %>% filter(statistic %in% c("ens_mean_var_adj")),
+    ##   aes(x = init_year, y = value), color = "#F8766D", size = 0.25
+    ## ) +
     geom_line(
       data = plotdata %>% filter(statistic %in% c("Observed", "Modelled")),
       aes(x = init_year, y = value, color = statistic)

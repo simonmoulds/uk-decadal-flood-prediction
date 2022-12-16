@@ -11,25 +11,25 @@ library(optparse)
 
 options(dplyr.summarise.inform = FALSE)
 
-## FOR TESTING:
-config = read_yaml('config/config_2.yml')
-experiment = 'hindcast_POT'
-aggregation_period = 'yr2' #to5_lag'
-method = 'forward'
-outputroot = 'results/exp2'
-cwd = 'workflow/scripts/'
+## ## FOR TESTING:
+## config = read_yaml('config/config_1.yml')
+## experiment = 'observed'
+## aggregation_period = 'yr2to5' #to5_lag'
+## method = 'cv'
+## outputroot = 'results/exp1'
+## cwd = 'workflow/scripts/'
 
-## if (sys.nframe() == 0L) {
-##   args = commandArgs(trailingOnly=TRUE)
-##   config = read_yaml(args[1])
-##   experiment = args[2]
-##   aggregation_period = args[3]
-##   method = args[4]
-##   outputroot = args[5]
-##   args = commandArgs()
-##   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
-##   cwd <- dirname(regmatches(args, m))
-## }
+if (sys.nframe() == 0L) {
+  args = commandArgs(trailingOnly=TRUE)
+  config = read_yaml(args[1])
+  experiment = args[2]
+  aggregation_period = args[3]
+  method = args[4]
+  outputroot = args[5]
+  args = commandArgs()
+  m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
+  cwd <- dirname(regmatches(args, m))
+}
 source(file.path(cwd, "utils.R"))
 
 ## Only parse the sections we need here
@@ -109,6 +109,10 @@ if (aggregation_period %in% experiment_conf$aggregation_periods) {
     }
 
     ## Handle missing data
+    ## FIXME - this problem arises because we no longer download precipitation
+    if ("P_sum" %in% names(catchment_data))
+      catchment_data <- catchment_data %>% dplyr::select(-P_sum)
+
     exclude = catchment_data$missing_pct > 30 | !complete.cases(catchment_data)
     if (experiment_conf$model_family == "GA") {
       ## Cannot fit a Gamma distribution if the response variable contains zeroes

@@ -39,31 +39,32 @@ source(file.path(cwd, "utils.R"))
 source(file.path(cwd, "plotting.R"))
 config[["modelling"]] <- parse_config_modelling(config)
 
-skill_measure = "crpss"
+fig_dpi <- 600
+skill_measure <- "crpss"
 all_skill_measures <- c("crps_fcst", "crps_ens_fcst", "crps_climat", "crpss", "aic")
 
-output_dir = file.path(outputroot, "fig", aggregation_period)
+output_dir <- file.path(outputroot, "fig", aggregation_period)
 if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
 }
 
-aggregation_period_label_list = list(
+aggregation_period_label_list <- list(
   "yr2" = "Year 2",
   "yr2to5_lag" = "Year 2-5",
   "yr6to9_lag" = "Year 6-9",
   "yr2to9_lag" = "Year 2-9"
 )
 
-obs_aggregation_period_list = list(
+obs_aggregation_period_list <- list(
   "yr2" = "yr2",
   "yr2to5_lag" = "yr2to5",
   "yr6to9_lag" = "yr6to9",
   "yr2to9_lag" = "yr2to9"
 )
 
-aggregation_period_label = aggregation_period_label_list[[aggregation_period]]
-obs_aggregation_period = obs_aggregation_period_list[[aggregation_period]]
-obs_aggregation_period_label = aggregation_period_label
+aggregation_period_label <- aggregation_period_label_list[[aggregation_period]]
+obs_aggregation_period <- obs_aggregation_period_list[[aggregation_period]]
+obs_aggregation_period_label <- aggregation_period_label
 
 ## ####################################################### ##
 ## ####################################################### ##
@@ -546,7 +547,7 @@ pp2 = p1 + p2 + p3 + guide_area() + plot_layout(design=design, guides="collect")
 
 ## Now use cowplot
 p = plot_grid(pp1, pp2, nrow=2, align="v", rel_heights = c(1, 1.25))
-ggsave(file.path(output_dir, "fig1.png"), plot = p, width = 6, height = 6.05, units = "in")
+ggsave(file.path(output_dir, "fig1.png"), plot = p, width = 6, height = 6.05, units = "in", dpi=fig_dpi)
 
 ## ## ####################################################### ##
 ## ## ####################################################### ##
@@ -812,7 +813,7 @@ p4 <- p4 + labs(title = "d") + theme(plot.title = element_text(size = tag_label_
 
 p <- p1 + p2 + p3 + p4 + plot_layout(design = design)
 
-ggsave(file.path(output_dir, "fig2.png"), plot = p, width = 6, height = 5.6, units = "in")
+ggsave(file.path(output_dir, "fig2.png"), plot = p, width = 6, height = 5.6, units = "in", dpi=fig_dpi)
 
 ## ## ####################################################### ##
 ## ## ####################################################### ##
@@ -1110,7 +1111,7 @@ p6 = p6 + theme(plot.margin = margin(0, 0, 0, 0),
 p = p1 + p2 + p3 + p4 + p5 + p6 +
   plot_layout(ncol = 3, nrow = 2, widths = c(2, 2, 2)) & theme(legend.position = "bottom")
 p = p + plot_layout(guides = "collect") & theme(legend.margin = margin(0, 0, 0, 0), legend.key.size = unit(1, 'lines'), legend.box.spacing = unit(0, 'cm'))
-ggsave(file.path(output_dir, "fig3.png"), plot = p, width = 6, height = 4.25, units = "in")
+ggsave(file.path(output_dir, "fig3.png"), plot = p, width = 6, height = 4.25, units = "in", dpi=fig_dpi)
 
 ## ## ####################################################### ##
 ## ## ####################################################### ##
@@ -1296,7 +1297,7 @@ p <- myplotfun_scatter(x)
 ##       ## direction = "horizontal"
 ##     )
 ##   )
-ggsave(file.path(output_dir, "fig4.png"), plot = p, width = 5, height = 5, units = "in")
+ggsave(file.path(output_dir, "fig4.png"), plot = p, width = 5, height = 5, units = "in", dpi=fig_dpi)
 
 ## ## ####################################################### ##
 ## ## ####################################################### ##
@@ -1481,7 +1482,7 @@ p4 <- p4 + labs(title = "d") + theme(plot.title = element_text(size = tag_label_
 
 p <- p1 + p2 + p3 + p4 + plot_layout(ncol=2, nrow=2)
 
-ggsave(file.path(output_dir, "figS1.png"), plot = p, width = 6, height = 6, units = "in")
+ggsave(file.path(output_dir, "figS1.png"), plot = p, width = 6, height = 6, units = "in", dpi=fig_dpi)
 
 ## ## ####################################################### ##
 ## ## ####################################################### ##
@@ -1995,7 +1996,7 @@ p = p1 + p2 + p3 + p4 + p6 + p7 + p8 + p9 +
     legend.box.spacing = unit(0, 'cm')
   )
 
-ggsave(file.path(output_dir, "figS2.png"), plot = p, width = 6, height = 4, units = "in")
+ggsave(file.path(output_dir, "figS2.png"), plot = p, width = 6, height = 4, units = "in", dpi=fig_dpi)
 
 ## ####################################################### ##
 ## ####################################################### ##
@@ -2142,34 +2143,35 @@ p4 <- p4 + labs(title = "d") + theme(plot.title = element_text(size = tag_label_
 
 ## Plot 5 [analog of Fig 2e from Smith et al. 2020]
 p5 <- myplotfun_precip_raw(full_fcst, ensemble_fcst)
-p5 <- p5 + labs(title = "g") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p5 <- p5 + labs(title = "e") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
 
 ## Plot 6 [analog of Fig 2f from Smith et al. 2020]
 p6 <- myplotfun_precip_matched(nao_matched_fcst, ensemble_fcst)
-p6 <- p6 + labs(title = "h") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+p6 <- p6 + labs(title = "f") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
 
-## Plot 7
-p7 <- myplotfun_temp_raw(full_fcst, ensemble_fcst)
-p7 <- p7 + labs(title = "e") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+## ## Plot 7
+## p7 <- myplotfun_temp_raw(full_fcst, ensemble_fcst)
+## p7 <- p7 + labs(title = "e") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
 
-## Plot 8
-p8 <- myplotfun_temp_matched(nao_matched_fcst, ensemble_fcst)
-p8 <- p8 + labs(title = "f") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
+## ## Plot 8
+## p8 <- myplotfun_temp_matched(nao_matched_fcst, ensemble_fcst)
+## p8 <- p8 + labs(title = "f") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
 
 p1 = p1 + theme(axis.title.y = element_text(size = axis_title_size_small))
 p3 = p3 + theme(axis.title.y = element_text(size = axis_title_size_small))
 p5 = p5 + theme(axis.title.y = element_text(size = axis_title_size_small))
-p7 = p7 + theme(axis.title.y = element_text(size = axis_title_size_small))
+## p7 = p7 + theme(axis.title.y = element_text(size = axis_title_size_small))
 
 p2 = p2 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
 p4 = p4 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
 p6 = p6 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
-p8 = p8 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
+## p8 = p8 + theme(axis.text.y = element_blank(), axis.title.y = element_blank())
 
-p = p1 + p2 + p3 + p4 + p7 + p8 + p5 + p6 + plot_layout(ncol = 2, nrow = 4) & theme(legend.position = "bottom")
+p = p1 + p2 + p3 + p4 + p5 + p6 + plot_layout(ncol = 2, nrow = 3) & theme(legend.position = "bottom")
+## p = p1 + p2 + p3 + p4 + p7 + p8 + p5 + p6 + plot_layout(ncol = 2, nrow = 4) & theme(legend.position = "bottom")
 p = p + plot_layout(guides = "collect")
 
-ggsave(file.path(output_dir, "figS3.png"), p, width = 6, height = 7, units = "in")
+ggsave(file.path(output_dir, "figS3.png"), p, width = 6, height = 6, units = "in", dpi=fig_dpi)
 
 ## ## ####################################################### ##
 ## ## ####################################################### ##
@@ -2979,7 +2981,7 @@ p3 <- p3 +
 p <- p1 + p2 + p3 + plot_layout(ncol = 3, nrow = 1) & theme(legend.position = "bottom")
 p = p + plot_layout(guides = "collect")
 
-ggsave(file.path(output_dir, "figS4.png"), plot = p, width = 6, height = 4.5, units = "in")
+ggsave(file.path(output_dir, "figS4.png"), plot = p, width = 6, height = 4.5, units = "in", dpi=fig_dpi)
 
 ## ## ####################################################### ##
 ## ## ####################################################### ##
