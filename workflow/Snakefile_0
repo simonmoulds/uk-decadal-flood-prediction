@@ -8,7 +8,6 @@ INTERMEDIATE_DIRECTORY = os.path.join(RESULTS_DIRECTORY, 'intermediate')
 OBSERVED_DATA_FILE = os.path.join(INTERMEDIATE_DIRECTORY, 'obs.parquet')
 ENSEMBLE_FORECAST_DATA_DIRECTORY = os.path.join(INTERMEDIATE_DIRECTORY, 'ensemble-forecast')
 
-
 # rule all:
 #     input:
 #         OBSERVED_DATA_FILE,
@@ -16,7 +15,7 @@ ENSEMBLE_FORECAST_DATA_DIRECTORY = os.path.join(INTERMEDIATE_DIRECTORY, 'ensembl
 
 rule obs_input:
     input:
-        script='workflow/scripts/prepare-observed-input-data.py',
+        script='workflow/decadal-prediction-scripts/Python/prepare-observed-input-data.py',
         config=CONFIG
     output:
         OBSERVED_DATA_FILE
@@ -35,7 +34,7 @@ rule obs_input:
 
 rule mod_input:
     input:
-        script='workflow/scripts/prepare-modelled-input-data.py',
+        script='workflow/decadal-prediction-scripts/Python/prepare-modelled-input-data.py',
         config=CONFIG
     output:
         directory(ENSEMBLE_FORECAST_DATA_DIRECTORY)

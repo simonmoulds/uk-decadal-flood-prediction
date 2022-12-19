@@ -1,3 +1,6 @@
 [submodule "workflow/scripts/external"]
 	path = workflow/scripts/external
 	url = https://github.com/simonmoulds/decadal-prediction-scripts
+[submodule "workflow/decadal-prediction-scripts"]
+	path = workflow/decadal-prediction-scripts
+	url = https://github.com/simonmoulds/decadal-prediction-scripts

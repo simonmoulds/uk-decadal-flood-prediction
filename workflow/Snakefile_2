@@ -33,7 +33,6 @@ rule all:
 rule select_stations:
     input:
         script='workflow/scripts/select-stations-exp2.R',
-        # script='workflow/scripts/select-stations-exp1.R',
         config=CONFIG
     output:
         STATIONS_FILE
@@ -129,42 +128,42 @@ rule prepare_field_input_data:
         Rscript {input.script} {input.config} {input.obs} {input.fcst} {input.stations} {wildcards.aggr} {params.outputdir}
         """
 
-rule get_nrfa_discharge_data:
-    input:
-        stations=STATIONS_FILE,
-        script='workflow/scripts/download-discharge-data.R'
-    output:
-        directory(NRFA_DISCHARGE_DIRECTORY),
-        NRFA_METADATA_FILE
-    params:
-        outputdir=EXP2_DIRECTORY
-    resources:
-        time = "00:30:00",
-        mem_mb = 4000,
-        partition = "short"
-    shell:
-        """
-        Rscript {input.script} {input.stations} {params.outputdir}
-        """
+# rule get_nrfa_discharge_data:
+#     input:
+#         stations=STATIONS_FILE,
+#         script='workflow/scripts/download-discharge-data.R'
+#     output:
+#         directory(NRFA_DISCHARGE_DIRECTORY),
+#         NRFA_METADATA_FILE
+#     params:
+#         outputdir=EXP2_DIRECTORY
+#     resources:
+#         time = "00:30:00",
+#         mem_mb = 4000,
+#         partition = "short"
+#     shell:
+#         """
+#         Rscript {input.script} {input.stations} {params.outputdir}
+#         """
 
-rule get_grdc_discharge_data:
-    input:
-        stations=STATIONS_FILE,
-        script='workflow/scripts/process-grdc-data.R',
-        config=CONFIG
-    output:
-        directory(GRDC_DISCHARGE_DIRECTORY),
-        GRDC_METADATA_FILE
-    params:
-        outputdir=EXP2_DIRECTORY
-    resources:
-        time = "00:30:00",
-        mem_mb = 4000,
-        partition = "short"
-    shell:
-        """
-        Rscript {input.script} {input.stations} {params.outputdir} {input.config}
-        """
+# rule get_grdc_discharge_data:
+#     input:
+#         stations=STATIONS_FILE,
+#         script='workflow/scripts/process-grdc-data.R',
+#         config=CONFIG
+#     output:
+#         directory(GRDC_DISCHARGE_DIRECTORY),
+#         GRDC_METADATA_FILE
+#     params:
+#         outputdir=EXP2_DIRECTORY
+#     resources:
+#         time = "00:30:00",
+#         mem_mb = 4000,
+#         partition = "short"
+#     shell:
+#         """
+#         Rscript {input.script} {input.stations} {params.outputdir} {input.config}
+#         """
 
 # rule nao_matching:
 #     input:

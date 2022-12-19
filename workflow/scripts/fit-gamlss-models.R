@@ -19,18 +19,35 @@ options(dplyr.summarise.inform = FALSE)
 ## outputroot = 'results/exp1'
 ## cwd = 'workflow/scripts/'
 
-if (sys.nframe() == 0L) {
-  args = commandArgs(trailingOnly=TRUE)
-  config = read_yaml(args[1])
-  experiment = args[2]
-  aggregation_period = args[3]
-  method = args[4]
-  outputroot = args[5]
-  args = commandArgs()
-  m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
-  cwd <- dirname(regmatches(args, m))
+if (exists("snakemake")) {
+  config <- snakemake@config
+  experiment <- snakemake@wildcards[["expm"]]
+  aggregation_period <- snakemake@wildcards[["aggr"]]
+  method <- snakemake@params[["method"]]
+  outputroot <- snakemake@params[["outputdir"]]
+  snakemake@source("utils.R")
+} else {
+  ## TESTING
+  config <- read_yaml("config/config_1.yml")
+  experiment <- "observed"
+  aggregation_period <- "yr2"
+  method <- "cv"
+  outputroot <- "results"
+  cwd = "workflow/decadal-prediction-scripts/R"
+  source(file.path(cwd, "utils.R"))
 }
-source(file.path(cwd, "utils.R"))
+## if (sys.nframe() == 0L) {
+##   args = commandArgs(trailingOnly=TRUE)
+##   config = read_yaml(args[1])
+##   experiment = args[2]
+##   aggregation_period = args[3]
+##   method = args[4]
+##   outputroot = args[5]
+##   args = commandArgs()
+##   m <- regexpr("(?<=^--file=).+", args, perl=TRUE)
+##   cwd <- dirname(regmatches(args, m))
+## }
+## source(file.path(cwd, "utils.R"))
 
 ## Only parse the sections we need here
 config[["subset"]] <- parse_config_subset(config)

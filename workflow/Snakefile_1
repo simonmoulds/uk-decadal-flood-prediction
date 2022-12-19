@@ -2,29 +2,31 @@ import os
 
 include: 'Snakefile_0'
 
+# Retrieve path of config file so that it can be passed to rules
 CONFIG = 'config/config_1.yml'
+if len(workflow.overwrite_configfiles) > 0:
+    CONFIG = workflow.overwrite_configfiles[0]
+
 configfile: CONFIG
 
 AGGR = ['yr2', 'yr2to9', 'yr2to9_lag', 'yr2to5', 'yr2to5_lag']
-# AGGR_PLOT = ['yr2', 'yr2to9_lag', 'yr2to5_lag']
-AGGR_PLOT = ['yr2', 'yr2to5_lag', 'yr2to9_lag']
+AGGR_PLOT = ['yr2to5_lag']
 EXPM = ['hindcast', 'observed']
 
-EXP1_DIRECTORY = os.path.join(RESULTS_DIRECTORY, 'exp1')
-STATIONS_FILE = os.path.join(EXP1_DIRECTORY, 'stations.txt')
-NRFA_DISCHARGE_DIRECTORY = os.path.join(EXP1_DIRECTORY, 'nrfa-discharge-summaries')
-NRFA_METADATA_FILE = os.path.join(EXP1_DIRECTORY, 'nrfa-metadata.parquet')
-ANALYSIS_DIRECTORY = os.path.join(EXP1_DIRECTORY, 'analysis')
+STATIONS_FILE = 'results/stations.txt'
+NRFA_DISCHARGE_DIRECTORY = 'results/nrfa-discharge-summaries'
+NRFA_METADATA_FILE = 'results/nrfa-metadata.parquet'
+ANALYSIS_DIRECTORY = 'results/analysis'
 
 rule all:
     input:
-        expand(ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet', aggr = AGGR),
-        expand(ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet', aggr = AGGR),
-        expand('results/exp1/fig/{aggr_plot}', aggr_plot = AGGR_PLOT)
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/observed.parquet', aggr = AGGR),
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/ensemble_forecast.parquet', aggr = AGGR),
+        expand('results/fig/{aggr_plot}', aggr_plot = AGGR_PLOT)
 
 rule select_stations:
     input:
-        script='workflow/scripts/select-stations-exp1.R',
+        script='workflow/decadal-prediction-scripts/R/select-stations-exp1.R',
         config=CONFIG
     output:
         STATIONS_FILE
@@ -34,59 +36,63 @@ rule select_stations:
         time = "00:30:00",
         mem_mb = 4000,
         partition = "short"
-    shell:
-        """
-        Rscript {input.script} {config[input_data_root]} {params.outfile} {input.config}
-        """
+    script:
+        'decadal-prediction-scripts/R/select-stations-exp1.R'
+    # shell:
+    #     """
+    #     Rscript {input.script} {config[input_data_root]} {params.outfile} {input.config}
+    #     """
 
 rule get_discharge_data:
     input:
         stations=STATIONS_FILE,
-        script='workflow/scripts/download-discharge-data.R'
+        script='workflow/decadal-prediction-scripts/R/download-discharge-data.R'
     output:
         directory(NRFA_DISCHARGE_DIRECTORY),
         NRFA_METADATA_FILE
     params:
-        outputdir=EXP1_DIRECTORY
+        outputdir='results'
     resources:
         time = "00:30:00",
         mem_mb = 4000,
         partition = "short"
-    shell:
-        """
-        Rscript {input.script} {input.stations} {params.outputdir}
-        """
+    script:
+        'decadal-prediction-scripts/R/download-discharge-data.R'
+    # shell:
+    #     """
+    #     Rscript {input.script} {input.stations} {params.outputdir}
+    #     """
 
 rule prepare_input_data:
     input:
-        script='workflow/scripts/prepare-input-data.R',
+        script='workflow/decadal-prediction-scripts/R/prepare-input-data.R',
         config=CONFIG,
         obs=OBSERVED_DATA_FILE,
         fcst=ENSEMBLE_FORECAST_DATA_DIRECTORY
     output:
-        ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
-        ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet'
+        ANALYSIS_DIRECTORY + '/{aggr}/observed.parquet',
+        ANALYSIS_DIRECTORY + '/{aggr}/ensemble_forecast.parquet'
     params:
         outputdir=ANALYSIS_DIRECTORY
     resources:
         time = "00:30:00",
         mem_mb = 4000,
         partition = "short"
-    shell:
-        """
-        Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
-        """
+    script:
+        'decadal-prediction-scripts/R/prepare-input-data.R'
+    # shell:
+    #     """
+    #     Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
+    #     """
 
 rule nao_matching:
     input:
         NRFA_DISCHARGE_DIRECTORY,
-        script='workflow/scripts/perform-nao-matching.R',
+        script='workflow/decadal-prediction-scripts/R/perform-nao-matching.R',
         config=CONFIG,
-        obs=ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
-        fcst=ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet'
+        obs=ANALYSIS_DIRECTORY + '/{aggr}/observed.parquet',
+        fcst=ANALYSIS_DIRECTORY + '/{aggr}/ensemble_forecast.parquet'
     output:
-        # ANALYSIS_DIRECTORY + '/{aggr}/obs_study_period.parquet',
-        # ANALYSIS_DIRECTORY + '/{aggr}/ensemble_fcst.parquet',
         ANALYSIS_DIRECTORY + '/{aggr}/ensemble_mean_fcst.parquet',
         ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet',
         ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet'
@@ -96,67 +102,76 @@ rule nao_matching:
         time = "00:30:00",
         mem_mb = 4000,
         partition = "short"
-    shell:
-        """
-        Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
-        """
+    script:
+        'decadal-prediction-scripts/R/perform-nao-matching.R'
+    # shell:
+    #     """
+    #     Rscript {input.script} {input.config} {input.obs} {input.fcst} {wildcards.aggr} {params.outputdir}
+    #     """
 
 rule build_catchment_dataset:
     input:
         NRFA_DISCHARGE_DIRECTORY,
         expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble.parquet', aggr = AGGR),
         expand(ANALYSIS_DIRECTORY + '/{aggr}/matched_ensemble_error.parquet', aggr = AGGR),
-        script='workflow/scripts/build-catchment-dataset.R',
+        script='workflow/decadal-prediction-scripts/R/build-catchment-dataset.R',
         config=CONFIG,
-        obs=OBSERVED_DATA_FILE
+        obs=OBSERVED_DATA_FILE,
+        metadata=NRFA_METADATA_FILE
     output:
         directory(ANALYSIS_DIRECTORY + '/{aggr}/input')
     params:
-        outputdir=EXP1_DIRECTORY
+        outputdir='results'
     resources:
         time = "00:30:00",
         mem_mb = 4000,
         partition = "short"
-    shell:
-        """
-        Rscript {input.script} {input.config} {input.obs} {wildcards.aggr} {params.outputdir}
-        """
+    script:
+        'decadal-prediction-scripts/R/build-catchment-dataset.R'
+    # shell:
+    #     """
+    #     Rscript {input.script} {input.config} {input.obs} {input.metadata} {wildcards.aggr} {params.outputdir}
+    #     """
 
 rule fit_gamlss_models:
     input:
-        expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR),
-        script='workflow/scripts/fit-gamlss-models.R',
-        config=CONFIG
+        expand(ANALYSIS_DIRECTORY + '/{aggr}/input', aggr = AGGR)#,
+        # script='workflow/decadal-prediction-scripts/R/fit-gamlss-models.R'#,
+        # config=CONFIG
     output:
         directory(ANALYSIS_DIRECTORY + '/{expm}/gamlss/{aggr}')
     params:
         method='cv',
-        outputdir=EXP1_DIRECTORY
+        outputdir='results'
     resources:
         time = "01:00:00",
         mem_mb = 4000,
         partition = "short"
-    shell:
-        """
-        Rscript {input.script} {input.config} {wildcards.expm} {wildcards.aggr} {params.method} {params.outputdir}
-        """
+    script:
+        'decadal-prediction-scripts/R/fit-gamlss-models.R'
+    # shell:
+    #     """
+    #     Rscript {input.script} {input.config} {wildcards.expm} {wildcards.aggr} {params.method} {params.outputdir}
+    #     """
 
 rule make_plots:
     input:
         expand(ANALYSIS_DIRECTORY + '/{expm}/gamlss/{aggr}', expm = EXPM, aggr = AGGR),
-        script='workflow/scripts/make-plots-exp1.R',
+        # script='workflow/decadal-prediction-scripts/R/make-plots-exp1.R',
         config=CONFIG
     output:
-        directory('results/exp1/fig/{aggr_plot}')
+        directory('results/fig/{aggr_plot}')
     wildcard_constraints:
         aggr_plot='|'.join([aggr for aggr in AGGR_PLOT])
     params:
-        outputdir='results/exp1'
+        outputdir='results'
     resources:
         time = "00:30:00",
         mem_mb = 4000,
         partition = "short"
-    shell:
-        """
-        Rscript {input.script} {input.config} {wildcards.aggr_plot} {params.outputdir}
-        """
+    script:
+        'decadal-prediction-scripts/R/make-plots-exp1.R'
+    # shell:
+    #     """
+    #     Rscript {input.script} {input.config} {wildcards.aggr_plot} {params.outputdir}
+    #     """

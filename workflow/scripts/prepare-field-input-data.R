@@ -84,7 +84,7 @@ for (i in 1:length(station_ids)) {
     subdataset,
     study_period,
     start = start, end = end,
-    vars = field_vars,
+    vars = vars,
     months = months
   )
   obs_field_antecedent <- get_obs_new(
@@ -92,7 +92,7 @@ for (i in 1:length(station_ids)) {
     study_period,
     start = start,
     end = end,
-    vars = field_vars,
+    vars = antecedent_vars,
     months = antecedent_months
   )
   obs_field_antecedent <-
@@ -127,10 +127,10 @@ for (i in 1:length(station_ids)) {
   id <- station_ids[i]
   ## TODO test this function on ARC - currently taking far too long here
   subdataset <- dataset %>% filter(ID %in% id) # & source_id %in% "CanCM4")
-  ensemble_fcst <- get_hindcast_data_new(
+  system.time(ensemble_fcst <- get_hindcast_data_new(
     subdataset, study_period, lead_times,
     vars = vars, months = months
-  )
+  ))
   ensemble_fcst_antecedent <- get_hindcast_data_new(
     subdataset, study_period, lead_times,
     vars = antecedent_vars, months = antecedent_months
