@@ -21,8 +21,10 @@ rule obs_input:
         OBSERVED_DATA_FILE
     params:
         outputdir=INTERMEDIATE_DIRECTORY
+    # conda:
+    #     'envs/decadal-prediction-base.yml'
     conda:
-        'envs/decadal-prediction-base.yml'
+        'envs/conda-environment-base.yml'
     # conda:
     #     'decadal-flood-prediction'
     resources:
@@ -44,8 +46,10 @@ rule mod_input:
         directory(ENSEMBLE_FORECAST_DATA_DIRECTORY)
     params:
         outputdir=INTERMEDIATE_DIRECTORY
+    # conda:
+    #     'envs/decadal-prediction-base.yml'
     conda:
-        'envs/decadal-prediction-base.yml'
+        'envs/conda-environment-base.yml'
     # conda:
     #     'decadal-flood-prediction'
     resources:

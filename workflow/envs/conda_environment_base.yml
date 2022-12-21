@@ -1,0 +1,14 @@
+name: decadal-prediction-base
+channels:
+  - defaults
+dependencies:
+  - conda-forge::iris=3.4
+  - python=3.10
+  - pip:
+    - click
+    - dask
+    - netCDF4
+    - pyarrow
+    - scipy
+    - tqdm
+    - xarray
