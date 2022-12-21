@@ -22,7 +22,7 @@ export PYTHONPATH=
 export R_LIBS_USER=$HOME/local/rlibs
 
 snakemake \
-    --snakefile workflow/Snakefile \
+    --snakefile workflow/Snakefile_1 \
     --profile $HOME/.config/snakemake/slurm.arc \
     --cores 1 \
     --config input_data_root=/data/ouce-drift/cenv0857 \
