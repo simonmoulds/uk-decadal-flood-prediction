@@ -46,7 +46,8 @@ rule get_discharge_data:
         outputdir='results'
     resources:
         time = "01:00:00",
-        mem_mb = 8000,
+        mem_mb = 32000,
+        cpus_per_task = 16,
         partition = "short"
     script:
         'decadal-prediction-scripts/R/download-discharge-data.R'
@@ -62,7 +63,8 @@ rule prepare_input_data:
         outputdir=ANALYSIS_DIRECTORY
     resources:
         time = "01:00:00",
-        mem_mb = 8000,
+        mem_mb = 32000,
+        cpus_per_task = 16,
         partition = "short"
     script:
         'decadal-prediction-scripts/R/prepare-input-data.R'
@@ -80,7 +82,8 @@ rule nao_matching:
         outputdir=ANALYSIS_DIRECTORY
     resources:
         time = "01:00:00",
-        mem_mb = 8000,
+        mem_mb = 32000,
+        cpus_per_task = 16,
         partition = "short"
     script:
         'decadal-prediction-scripts/R/perform-nao-matching.R'
@@ -98,7 +101,8 @@ rule build_catchment_dataset:
         outputdir='results'
     resources:
         time = "01:00:00",
-        mem_mb = 8000,
+        mem_mb = 32000,
+        cpus_per_task = 16,
         partition = "short"
     script:
         'decadal-prediction-scripts/R/build-catchment-dataset.R'
@@ -113,7 +117,8 @@ rule fit_gamlss_models:
         outputdir='results'
     resources:
         time = "01:00:00",
-        mem_mb = 8000,
+        mem_mb = 32000,
+        cpus_per_task = 16,
         partition = "short"
     script:
         'decadal-prediction-scripts/R/fit-gamlss-models.R'
@@ -129,7 +134,8 @@ rule make_plots:
         outputdir='results'
     resources:
         time = "01:00:00",
-        mem_mb = 8000,
+        mem_mb = 32000,
+        cpus_per_task = 16,
         partition = "short"
     script:
         'decadal-prediction-scripts/R/make-plots-exp1.R'
