@@ -4,6 +4,7 @@ channels:
 dependencies:
   - conda-forge::iris=3.4
   - python=3.10
+  - pip
   - pip:
     - click
     - dask
