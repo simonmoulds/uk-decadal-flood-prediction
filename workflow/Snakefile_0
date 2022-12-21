@@ -24,7 +24,7 @@ rule obs_input:
     # conda:
     #     'envs/decadal-prediction-base.yml'
     conda:
-        'envs/conda-environment-base.yml'
+        'envs/conda_environment_base.yml'
     # conda:
     #     'decadal-flood-prediction'
     resources:
@@ -49,7 +49,7 @@ rule mod_input:
     # conda:
     #     'envs/decadal-prediction-base.yml'
     conda:
-        'envs/conda-environment-base.yml'
+        'envs/conda_environment_base.yml'
     # conda:
     #     'decadal-flood-prediction'
     resources:
