@@ -13,6 +13,7 @@
 
 module load Anaconda3/2022.05
 module load NCO/5.0.1-foss-2021a
+module load Mamba/4.14.0-0
 source activate $DATA/envs/snakemake
 
 # PYTHONPATH sometimes causes issues
