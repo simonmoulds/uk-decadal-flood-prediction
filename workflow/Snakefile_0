@@ -1,52 +1,60 @@
 import os
 
 CONFIG = 'config/config_0.yml'
-configfile: CONFIG
+configfile: 'config/config_0.yml'
 
 RESULTS_DIRECTORY = config['output_data']
 INTERMEDIATE_DIRECTORY = os.path.join(RESULTS_DIRECTORY, 'intermediate')
 OBSERVED_DATA_FILE = os.path.join(INTERMEDIATE_DIRECTORY, 'obs.parquet')
 ENSEMBLE_FORECAST_DATA_DIRECTORY = os.path.join(INTERMEDIATE_DIRECTORY, 'ensemble-forecast')
 
-# rule all:
-#     input:
-#         OBSERVED_DATA_FILE,
-#         ENSEMBLE_FORECAST_DATA_DIRECTORY
+rule all:
+    input:
+        OBSERVED_DATA_FILE,
+        ENSEMBLE_FORECAST_DATA_DIRECTORY
 
 rule obs_input:
-    input:
-        script='workflow/decadal-prediction-scripts/Python/prepare-observed-input-data.py',
-        config=CONFIG
+    # input:
+    #     script='workflow/decadal-prediction-scripts/Python/prepare-observed-input-data.py',
+    #     config=CONFIG
     output:
         OBSERVED_DATA_FILE
     params:
         outputdir=INTERMEDIATE_DIRECTORY
     conda:
-        'decadal-flood-prediction'
+        'envs/decadal-prediction-base.yml'
+    # conda:
+    #     'decadal-flood-prediction'
     resources:
         time = "00:30:00",
         mem_mb = 4000,
         partition = "short"
-    shell:
-        """
-        python {input.script} -i {config[input_data_root]} -o {params.outputdir} --config {input.config}
-        """
+    script:
+        'decadal-prediction-scripts/Python/prepare-observed-input-data.py'
+    # shell:
+    #     """
+    #     python {input.script} -i {config[input_data_root]} -o {params.outputdir} --config {input.config}
+    #     """
 
 rule mod_input:
-    input:
-        script='workflow/decadal-prediction-scripts/Python/prepare-modelled-input-data.py',
-        config=CONFIG
+    # input:
+    #     script='workflow/decadal-prediction-scripts/Python/prepare-modelled-input-data.py',
+    #     config=CONFIG
     output:
         directory(ENSEMBLE_FORECAST_DATA_DIRECTORY)
     params:
         outputdir=INTERMEDIATE_DIRECTORY
     conda:
-        'decadal-flood-prediction'
+        'envs/decadal-prediction-base.yml'
+    # conda:
+    #     'decadal-flood-prediction'
     resources:
         time = "03:00:00",
         mem_mb = 4000,
         partition = "short"
-    shell:
-        """
-        python {input.script} -i {config[input_data_root]} -o {params.outputdir} --config {input.config}
-        """
+    script:
+        'decadal-prediction-scripts/Python/prepare-modelled-input-data.py'
+    # shell:
+    #     """
+    #     python {input.script} -i {config[input_data_root]} -o {params.outputdir} --config {input.config}
+    #     """
