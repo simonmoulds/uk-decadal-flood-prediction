@@ -1,8 +1,9 @@
 name: conda_environment_base
 channels:
+  - conda-forge
   - defaults
 dependencies:
-  - conda-forge::iris=3.4
+  - iris=3.4.0
   - python=3.10
   - pip=22.3.1
   - pip:
