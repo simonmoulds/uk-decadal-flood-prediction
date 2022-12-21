@@ -1,15 +1,15 @@
-name: decadal-prediction-base
+name: conda_environment_base
 channels:
   - defaults
 dependencies:
   - conda-forge::iris=3.4
   - python=3.10
-  - pip
+  - pip=22.3.1
   - pip:
-    - click
-    - dask
-    - netCDF4
-    - pyarrow
-    - scipy
-    - tqdm
-    - xarray
+    - click==8.1.3
+    - dask==2022.12.1
+    - netCDF4==1.6.2
+    - pyarrow==10.0.1
+    - pytz==2022.7
+    - tqdm==4.64.1
+    - xarray==2022.12.0
