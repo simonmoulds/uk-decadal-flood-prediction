@@ -6,7 +6,7 @@
 #SBATCH --mail-user=simon.moulds@ouce.ox.ac.uk
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=12
-#SBATCH --job-name=esmvaltool
+#SBATCH --job-name=uk_decadal_flood_prediction
 #SBATCH --time=12:00:00
 
 # cd $SCRATCH || exit 1
