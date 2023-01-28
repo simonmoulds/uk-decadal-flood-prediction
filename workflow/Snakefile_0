@@ -1,32 +1,39 @@
 import os
 
-CONFIG = 'config/config_0.yml'
-configfile: 'config/config_0.yml'
+# CONFIG = 'config/config_2.yml'
+# configfile: CONFIG
 
-RESULTS_DIRECTORY = config['output_data']
-INTERMEDIATE_DIRECTORY = os.path.join(RESULTS_DIRECTORY, 'intermediate')
-OBSERVED_DATA_FILE = os.path.join(INTERMEDIATE_DIRECTORY, 'obs.parquet')
-ENSEMBLE_FORECAST_DATA_DIRECTORY = os.path.join(INTERMEDIATE_DIRECTORY, 'ensemble-forecast')
+INTERMEDIATE_DIRECTORY = os.path.join('results/intermediate')
+STATIONS_FILE = 'resources/station_list_with_grid_coords.parquet'
+GRID_FILE = 'resources/grid.nc'
+OBSERVED_DATA = os.path.join(
+    INTERMEDIATE_DIRECTORY, 'observed.parquet'
+)
+ENSEMBLE_FORECAST_DATA = os.path.join(
+    INTERMEDIATE_DIRECTORY, 'ensemble-forecast'
+)
+OBSERVED_FIELD_DATA = os.path.join(
+    INTERMEDIATE_DIRECTORY, 'observed-field.parquet'
+)
+ENSEMBLE_FORECAST_FIELD_DATA = os.path.join(
+    INTERMEDIATE_DIRECTORY, 'ensemble-forecast-field'
+)
 
 # rule all:
 #     input:
-#         OBSERVED_DATA_FILE,
-#         ENSEMBLE_FORECAST_DATA_DIRECTORY
+#         OBSERVED_DATA,
+#         # ENSEMBLE_FORECAST_DATA,
+#         OBSERVED_FIELD_DATA
+#         # ENSEMBLE_FORECAST_FIELD_DATA
 
 rule obs_input:
-    # input:
-    #     script='workflow/decadal-prediction-scripts/Python/prepare-observed-input-data.py',
-    #     config=CONFIG
     output:
-        OBSERVED_DATA_FILE
+        touch('results/obs_input.done'),
+        OBSERVED_DATA
     params:
         outputdir=INTERMEDIATE_DIRECTORY
-    # conda:
-    #     'envs/decadal-prediction-base.yml'
     conda:
         'envs/conda_environment_base.yml'
-    # conda:
-    #     'decadal-flood-prediction'
     resources:
         time = "00:30:00",
         mem_mb = 32000,
@@ -34,33 +41,59 @@ rule obs_input:
         partition = "short"
     script:
         'decadal-prediction-scripts/Python/prepare-observed-input-data.py'
-    # shell:
-    #     """
-    #     python {input.script} -i {config[input_data_root]} -o {params.outputdir} --config {input.config}
-    #     """
 
 rule mod_input:
-    # input:
-    #     script='workflow/decadal-prediction-scripts/Python/prepare-modelled-input-data.py',
-    #     config=CONFIG
     output:
-        directory(ENSEMBLE_FORECAST_DATA_DIRECTORY)
+        touch('results/mod_input.done'),
+        directory(ENSEMBLE_FORECAST_DATA)
     params:
         outputdir=INTERMEDIATE_DIRECTORY
-    # conda:
-    #     'envs/decadal-prediction-base.yml'
     conda:
         'envs/conda_environment_base.yml'
-    # conda:
-    #     'decadal-flood-prediction'
     resources:
         time = "03:00:00",
         mem_mb = 32000,
-        cpus_per_task = 16,
+        # cpus_per_task = 16,
         partition = "short"
     script:
         'decadal-prediction-scripts/Python/prepare-modelled-input-data.py'
-    # shell:
-    #     """
-    #     python {input.script} -i {config[input_data_root]} -o {params.outputdir} --config {input.config}
-    #     """
+
+rule obs_field_input:
+    input:
+        'results/obs_input.done',
+        stations=STATIONS_FILE,
+        grid=GRID_FILE
+    output:
+        touch('results/obs_field_input.done'),
+        OBSERVED_FIELD_DATA
+    params:
+        outputdir=INTERMEDIATE_DIRECTORY
+    conda:
+        'envs/conda_environment_base.yml'
+    resources:
+        time = "03:00:00",
+        mem_mb = 32000,
+        # cpus_per_task = 16,
+        partition = "short"
+    script:
+        'decadal-prediction-scripts/Python/prepare-observed-field-input-data.py'
+
+rule mod_field_input:
+    input:
+        'results/mod_input.done',
+        stations=STATIONS_FILE,
+        grid=GRID_FILE
+    output:
+        touch('results/mod_field_input.done'),
+        directory(ENSEMBLE_FORECAST_FIELD_DATA)
+    params:
+        outputdir=INTERMEDIATE_DIRECTORY
+    conda:
+        'envs/conda_environment_base.yml'
+    resources:
+        time = "03:00:00",
+        mem_mb = 32000,
+        # cpus_per_task = 16,
+        partition = "short"
+    script:
+        'decadal-prediction-scripts/Python/prepare-modelled-field-input-data.py'
