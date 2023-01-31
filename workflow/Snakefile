@@ -1,0 +1,182 @@
+import os
+import pandas as pd
+
+include: 'Snakefile_0'
+
+CONFIG = 'config/config_2.yml'
+configfile: CONFIG
+
+SEASON = ['SON', 'DJFM']
+SEASON_STAT = ['DJFM']
+AGGR = ['yr2', 'yr2to5', 'yr2to5_lag', 'yr2to9_lag']
+AGGR_STAT = ['yr2', 'yr2to5_lag']
+EXPM = ['hindcast_Q95', 'observed_Q95']
+
+STATIONS_FILE = 'resources/station_list_with_grid_coords.parquet'
+df = pd.read_parquet(STATIONS_FILE)
+STATIONS = list(df['id'])
+GRIDS = list(df['coord'].unique())
+
+INPUT_DIR = 'results/input'
+OUTPUT_DIR = 'results/output'
+
+rule all:
+    input:
+        expand('results/fig/{aggr_stat}', aggr_stat=AGGR_STAT)
+
+
+rule prepare_input_data:
+    input:
+        'results/obs_input.done',
+        'results/mod_input.done',
+        obs=OBSERVED_DATA,
+        fcst=ENSEMBLE_FORECAST_DATA
+    output:
+        INPUT_DIR + '/meteo/{aggr}/{season}/observed.parquet',
+        INPUT_DIR + '/meteo/{aggr}/{season}/ensemble_forecast.parquet'
+    params:
+        outputroot=INPUT_DIR + '/meteo'
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
+    script:
+        'decadal-prediction-scripts/R/prepare-input-data.R'
+
+
+rule prepare_field_input_data:
+    input:
+        'results/obs_field_input.done',
+        'results/mod_field_input.done',
+        obs=OBSERVED_FIELD_DATA,
+        fcst=ENSEMBLE_FORECAST_FIELD_DATA
+    output:
+        directory(INPUT_DIR + '/meteo/{aggr}/{season}/observed-field/{grid}'),
+        directory(INPUT_DIR + '/meteo/{aggr}/{season}/ensemble-forecast-field/{grid}')
+    params:
+        outputroot=INPUT_DIR + '/meteo'
+    resources:
+        time = "12:00:00",
+        mem_mb = 32000,
+        partition = "short"
+    script:
+        'decadal-prediction-scripts/R/prepare-field-input-data.R'
+
+
+rule get_nrfa_discharge_data:
+    input:
+        stations=STATIONS_FILE,
+    output:
+        directory(INPUT_DIR + '/discharge/NRFA/{season}')
+    params:
+        outputroot=INPUT_DIR + '/discharge/NRFA'
+    resources:
+        time = "00:30:00",
+        mem_mb = 4000,
+        partition = "short"
+    script:
+        'decadal-prediction-scripts/R/download-discharge-data.R'
+
+
+rule nao_matching:
+    input:
+        obs=INPUT_DIR + '/meteo/{aggr}/{season}/observed.parquet',
+        fcst=INPUT_DIR + '/meteo/{aggr}/{season}/ensemble_forecast.parquet'
+    output:
+        INPUT_DIR + '/nao_matching/{aggr}/{season}/ensemble_mean_fcst.parquet',
+        INPUT_DIR + '/nao_matching/{aggr}/{season}/matched_ensemble.parquet',
+        INPUT_DIR + '/nao_matching/{aggr}/{season}/matched_ensemble_error.parquet'
+    params:
+        outputroot=INPUT_DIR + '/nao_matching',
+        match_var="nao"
+    resources:
+        time = "01:00:00",
+        mem_mb = 32000,
+        cpus_per_task = 16,
+        partition = "short"
+    script:
+        'decadal-prediction-scripts/R/perform-nao-matching.R'
+
+
+rule build_catchment_dataset:
+    input:
+        expand(INPUT_DIR + '/discharge/NRFA/{season}', season=SEASON),
+        expand(
+            INPUT_DIR +
+            '/nao_matching/{aggr}/{season}/ensemble_mean_fcst.parquet',
+            aggr=AGGR, season=SEASON
+        ),
+        expand(
+            INPUT_DIR +
+            '/nao_matching/{aggr}/{season}/matched_ensemble.parquet',
+            aggr=AGGR, season=SEASON
+        ),
+        expand(
+            INPUT_DIR +
+            '/nao_matching/{aggr}/{season}/matched_ensemble_error.parquet',
+            aggr=AGGR, season=SEASON
+        ),
+        expand(
+            INPUT_DIR +
+            '/meteo/{aggr}/{season}/observed-field/{grid}',
+            aggr=AGGR, grid=GRIDS, season=SEASON
+        ),
+        expand(
+            INPUT_DIR +
+            '/meteo/{aggr}/{season}/ensemble-forecast-field/{grid}',
+            aggr=AGGR, grid=GRIDS, season=SEASON
+        ),
+        stations=STATIONS_FILE
+    output:
+        directory(INPUT_DIR + '/combined/{aggr}/{season}/{stn}')
+    params:
+        outputroot=INPUT_DIR
+    resources:
+        time = "03:00:00",
+        mem_mb = 32000,
+        partition = "short"
+    script:
+        'decadal-prediction-scripts/R/build-catchment-dataset-global.R'
+
+
+rule fit_gamlss_models:
+    input:
+        expand(
+            INPUT_DIR + '/combined/{aggr}/{season}/{stn}',
+            aggr=AGGR, season=SEASON_STAT, stn=STATIONS
+        )
+    output:
+        directory(OUTPUT_DIR + '/{expm}/gamlss/{aggr}/{season}/fit/{stn}'),
+        directory(OUTPUT_DIR + '/{expm}/gamlss/{aggr}/{season}/prediction/{stn}')
+    params:
+        method='cv',
+        outputroot='results'
+    resources:
+        time = "01:00:00",
+        mem_mb = 4000,
+        partition = "short"
+    script:
+        'decadal-prediction-scripts/R/fit-gamlss-models.R'
+
+
+rule make_plots:
+    input:
+        expand(
+            OUTPUT_DIR + '/{expm}/gamlss/{aggr}/{season}/fit/{stn}',
+            expm=EXPM, aggr=AGGR_STAT, season=SEASON_STAT, stn=STATIONS
+        ),
+        expand(
+            OUTPUT_DIR + '/{expm}/gamlss/{aggr}/{season}/prediction/{stn}',
+            expm=EXPM, aggr=AGGR_STAT, season=SEASON_STAT, stn=STATIONS
+        )
+    output:
+        directory('results/fig/{aggr}')
+    params:
+        outputroot='results'
+    resources:
+        time = "01:00:00",
+        mem_mb = 32000,
+        cpus_per_task = 16,
+        partition = "short"
+    script:
+        'decadal-prediction-scripts/R/make-plots-exp1.R'

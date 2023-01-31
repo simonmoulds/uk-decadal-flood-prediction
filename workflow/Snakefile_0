@@ -1,8 +1,5 @@
 import os
 
-# CONFIG = 'config/config_2.yml'
-# configfile: CONFIG
-
 INTERMEDIATE_DIRECTORY = os.path.join('results/intermediate')
 STATIONS_FILE = 'resources/station_list_with_grid_coords.parquet'
 GRID_FILE = 'resources/grid.nc'
@@ -18,13 +15,6 @@ OBSERVED_FIELD_DATA = os.path.join(
 ENSEMBLE_FORECAST_FIELD_DATA = os.path.join(
     INTERMEDIATE_DIRECTORY, 'ensemble-forecast-field'
 )
-
-# rule all:
-#     input:
-#         OBSERVED_DATA,
-#         # ENSEMBLE_FORECAST_DATA,
-#         OBSERVED_FIELD_DATA
-#         # ENSEMBLE_FORECAST_FIELD_DATA
 
 rule obs_input:
     output:
@@ -53,7 +43,6 @@ rule mod_input:
     resources:
         time = "03:00:00",
         mem_mb = 32000,
-        # cpus_per_task = 16,
         partition = "short"
     script:
         'decadal-prediction-scripts/Python/prepare-modelled-input-data.py'
@@ -73,7 +62,6 @@ rule obs_field_input:
     resources:
         time = "03:00:00",
         mem_mb = 32000,
-        # cpus_per_task = 16,
         partition = "short"
     script:
         'decadal-prediction-scripts/Python/prepare-observed-field-input-data.py'
@@ -93,7 +81,6 @@ rule mod_field_input:
     resources:
         time = "03:00:00",
         mem_mb = 32000,
-        # cpus_per_task = 16,
         partition = "short"
     script:
         'decadal-prediction-scripts/Python/prepare-modelled-field-input-data.py'
