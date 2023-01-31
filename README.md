@@ -5,9 +5,7 @@
 
 A Snakemake workflow for making decadal flood predictions using CMIP5/6 decadal hindcasts. The workflow reproduces the results described in our research article: 
 
-```
 Moulds S, Slater LJ, Dunstone NJ, Smith DM (2023). Skillful decadal flood prediction. Geophysical Research Letters, 49, e2022GL100650. https://doi.org/10.1029/2022GL100650
-```
 
 ## Usage
 
@@ -16,11 +14,11 @@ This repository is a Snakemake workflow. Users should install Snakemake using [M
 ``` sh
 snakemake --cores N --use-conda
 ```
-where N is the number of cores you wish to use. Note that the workflow has been tested on MacOS and Linux systems only. On Windows it should work under the Windows Subsystem for Linux. 
+where N is the number of cores you wish to use. The workflow has been tested on MacOS and Linux systems. On Windows it should work under the Windows Subsystem for Linux. 
 
-The raw data needed to run the workflow is not available here. It can be downloaded from the corresponding [Zenodo dataset](https://doi.org/10.5281/zenodo.6940449).
+The raw data needed to run the workflow is not included in the Github repository. It can be downloaded from the corresponding [Zenodo dataset](https://doi.org/10.5281/zenodo.6940449).
 
-The workflow relies on several scripts written in R. They have been tested on R version 4.1.3 (One Push-Up). The following R packages must be installed:
+The workflow relies on several scripts written in R. These have been tested on R version 4.1.3 (One Push-Up). The following R packages must be available:
 
 - arrow (8.0.0.9)
 - cowplot (1.1.1)
@@ -45,7 +43,7 @@ The workflow relies on several scripts written in R. They have been tested on R 
 - yaml (2.3.5)
 - zoo (1.8.9)
 
-The version used in the most recent top to bottom run is shown in brackets, although it is likely that other versions will also work. 
+The package version used in the most recent top to bottom run of the workflow is shown in brackets, although it is likely that other versions will also work. 
 
 ## Authors
 
