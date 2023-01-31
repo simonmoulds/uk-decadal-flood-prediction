@@ -3,7 +3,7 @@ import pandas as pd
 
 include: 'Snakefile_0'
 
-CONFIG = 'config/config_2.yml'
+CONFIG = 'config/config.yml'
 configfile: CONFIG
 
 SEASON = ['SON', 'DJFM']
@@ -41,7 +41,7 @@ rule prepare_input_data:
         mem_mb = 4000,
         partition = "short"
     script:
-        'decadal-prediction-scripts/R/prepare-input-data.R'
+        'scripts/R/prepare-input-data.R'
 
 
 rule prepare_field_input_data:
@@ -60,7 +60,7 @@ rule prepare_field_input_data:
         mem_mb = 32000,
         partition = "short"
     script:
-        'decadal-prediction-scripts/R/prepare-field-input-data.R'
+        'scripts/R/prepare-field-input-data.R'
 
 
 rule get_nrfa_discharge_data:
@@ -75,7 +75,7 @@ rule get_nrfa_discharge_data:
         mem_mb = 4000,
         partition = "short"
     script:
-        'decadal-prediction-scripts/R/download-discharge-data.R'
+        'scripts/R/download-discharge-data.R'
 
 
 rule nao_matching:
@@ -95,7 +95,7 @@ rule nao_matching:
         cpus_per_task = 16,
         partition = "short"
     script:
-        'decadal-prediction-scripts/R/perform-nao-matching.R'
+        'scripts/R/perform-nao-matching.R'
 
 
 rule build_catchment_dataset:
@@ -136,7 +136,7 @@ rule build_catchment_dataset:
         mem_mb = 32000,
         partition = "short"
     script:
-        'decadal-prediction-scripts/R/build-catchment-dataset-global.R'
+        'scripts/R/build-catchment-dataset.R'
 
 
 rule fit_gamlss_models:
@@ -156,7 +156,7 @@ rule fit_gamlss_models:
         mem_mb = 4000,
         partition = "short"
     script:
-        'decadal-prediction-scripts/R/fit-gamlss-models.R'
+        'scripts/R/fit-gamlss-models.R'
 
 
 rule make_plots:
@@ -179,4 +179,4 @@ rule make_plots:
         cpus_per_task = 16,
         partition = "short"
     script:
-        'decadal-prediction-scripts/R/make-plots-exp1.R'
+        'scripts/R/make-plots.R'

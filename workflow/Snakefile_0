@@ -30,7 +30,7 @@ rule obs_input:
         cpus_per_task = 16,
         partition = "short"
     script:
-        'decadal-prediction-scripts/Python/prepare-observed-input-data.py'
+        'scripts/Python/prepare-observed-input-data.py'
 
 rule mod_input:
     output:
@@ -45,7 +45,7 @@ rule mod_input:
         mem_mb = 32000,
         partition = "short"
     script:
-        'decadal-prediction-scripts/Python/prepare-modelled-input-data.py'
+        'scripts/Python/prepare-modelled-input-data.py'
 
 rule obs_field_input:
     input:
@@ -64,7 +64,7 @@ rule obs_field_input:
         mem_mb = 32000,
         partition = "short"
     script:
-        'decadal-prediction-scripts/Python/prepare-observed-field-input-data.py'
+        'scripts/Python/prepare-observed-field-input-data.py'
 
 rule mod_field_input:
     input:
@@ -83,4 +83,4 @@ rule mod_field_input:
         mem_mb = 32000,
         partition = "short"
     script:
-        'decadal-prediction-scripts/Python/prepare-modelled-field-input-data.py'
+        'scripts/Python/prepare-modelled-field-input-data.py'

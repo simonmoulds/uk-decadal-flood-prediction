@@ -3,7 +3,7 @@ input_data_root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
 output_data: results
 
 observed_data:
-  root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
+  root: resources
   giss:
     subdirectory: observed_data/GISS
   gpcc:
@@ -18,7 +18,7 @@ observed_data:
     subdirectory: observed_data/NCDC
 
 ensemble_data:
-  root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
+  root: resources
   cmip5:
     subdirectory:
       - esmvaltool_output/recipe_s20_cmip5_autogen_20221214_103843/
@@ -45,15 +45,6 @@ ensemble_data:
       - MIROC6
       - MPI-ESM1-2-HR
       - NorCPM1
-
-aux_data:
-  root: /Users/simonmoulds/projects/decadal-flood-prediction/data-raw
-  camels:
-    subdirectory: 8344e4f3-d2ea-44f5-8afa-86d2987543a9
-  ukbn:
-    subdirectory: UKBN
-  grdc:
-    subdirectory: GRDC
 
 subset:
   full:
@@ -162,28 +153,3 @@ modelling:
       NAO: Q ~ nao
     subsets:
       - observed
-  # hindcast_field_Q95:
-  #   name: hindcast_field_Q95
-  #   input_dataset: hindcast-analysis
-  #   predictand: Q_95
-  #   model_family: GA
-  #   study_period: 1960:2005
-  #   formulas:
-  #     P: Q ~ precip_field
-  #     P_T: Q ~ precip_field + temp_field
-  #     P_T_antP: Q ~ precip_field + precip_field_antecedent + temp_field
-  #   subsets:
-  #     - full
-  #     - best_n
-  # observed_field_Q95:
-  #   name: observed_field_Q95
-  #   input_dataset: observed-analysis
-  #   predictand: Q_95
-  #   model_family: GA
-  #   study_period: 1960:2005
-  #   formulas:
-  #     P: Q ~ precip_field
-  #     P_T: Q ~ precip_field + temp_field
-  #     P_T_antP: Q ~ precip_field + precip_field_antecedent + temp_field
-  #   subsets:
-  #     - observed
