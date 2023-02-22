@@ -31,7 +31,17 @@ mylabelfun <- function(breaks) {
   labs
 }
 
-plot_grl2023_fig1a_b <- function(example_discharge_data) {
+.plot_grl2023_fig1a <- function(example_discharge_data, scale_factor = 1, ...) {
+
+  dots <- list(...)
+  if ("legend_title_size" %in% names(dots))
+    legend_title_size <- dots$legend_title_size
+  if ("legend_label_size" %in% names(dots))
+    legend_label_size <- dots$legend_label_size
+  if ("axis_title_size" %in% names(dots))
+    axis_title_size <- dots$axis_title_size
+  if ("axis_label_size" %in% names(dots))
+    axis_label_size <- dots$axis_label_size
 
   cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
   blue <- "#8DA0CB"
@@ -53,7 +63,7 @@ plot_grl2023_fig1a_b <- function(example_discharge_data) {
     geom_segment(
       data = d,
       aes(x = Start, y = Q_95_multiyear, xend = End, yend = Q_95_multiyear, colour = "Aggregation period"),
-      size = 1.5,
+      size = 1.5 * scale_factor,
       alpha = .5
     ) +
     scale_color_discrete(
@@ -82,7 +92,7 @@ plot_grl2023_fig1a_b <- function(example_discharge_data) {
           )
         ),
       aes(x = value, y = Q_95_multiyear, colour= key),
-      size = 2.5
+      size = 2.5 * scale_factor
     ) +
     scale_color_manual(
       name = "",
@@ -92,7 +102,8 @@ plot_grl2023_fig1a_b <- function(example_discharge_data) {
     new_scale_color() +
     geom_point(
       data = d,
-      aes(x = season_year, y = Q_95, colour = group)
+      aes(x = season_year, y = Q_95, colour = group),
+      size = 2.5 * scale_factor
     ) +
     scale_color_manual(
       name = "",
@@ -122,6 +133,25 @@ plot_grl2023_fig1a_b <- function(example_discharge_data) {
       axis.ticks.y = element_blank(),
       plot.margin = margin(0.5, 0, 0.5, 0, unit = "cm")
     )
+  p1
+}
+
+.plot_grl2023_fig1b <- function(scale_factor = 1, ...) {
+
+  dots <- list(...)
+  if ("legend_title_size" %in% names(dots))
+    legend_title_size <- dots$legend_title_size
+  if ("legend_label_size" %in% names(dots))
+    legend_label_size <- dots$legend_label_size
+  if ("axis_title_size" %in% names(dots))
+    axis_title_size <- dots$axis_title_size
+  if ("axis_label_size" %in% names(dots))
+    axis_label_size <- dots$axis_label_size
+
+  cbbPalette <- RColorBrewer::brewer.pal(3, "Set2")
+  blue <- "#8DA0CB"
+  green <- "#FC8D62"
+  turquoise <- "#FC8D62"
 
   ## Create some artificial data
   d <- tibble(
@@ -136,13 +166,13 @@ plot_grl2023_fig1a_b <- function(example_discharge_data) {
     geom_segment(
       data = d,
       aes(x = Start, y = Q, xend = End, yend = Q, colour = "Forecast period"),
-      size = 1.5,
+      size = 1.5 * scale_factor,
       alpha = .5
     ) +
     geom_segment(
       data = d,
       aes(x = Init, y = Q, xend = Start, yend = Q, colour = "Lead time"),
-      size = 1.5,
+      size = 1.5 * scale_factor,
       alpha = .5
     ) +
     scale_color_discrete(
@@ -163,7 +193,7 @@ plot_grl2023_fig1a_b <- function(example_discharge_data) {
           )
         ),
       aes(x = value, y = Q, colour= key),
-      size = 2.5
+      size = 2.5 * scale_factor
     ) +
     scale_color_discrete(
       name = "",
@@ -198,6 +228,14 @@ plot_grl2023_fig1a_b <- function(example_discharge_data) {
       plot.margin = margin(0.5, 0, 0.5, 0, unit = "cm")
     )
 
+  p2
+}
+
+plot_grl2023_fig1a_b <- function(example_discharge_data, ...) {
+
+  p1 <- .plot_grl2023_fig1a(example_discharge_data, ...)
+  p2 <- .plot_grl2023_fig1b(...)
+
   ## Arrange plots using patchwork
   design <- "
   AAAAAAAACCC
@@ -217,10 +255,13 @@ plot_grl2023_fig1a_b <- function(example_discharge_data) {
 
   p1 <- p1 + labs(title = "a") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
   p2 <- p2 + labs(title = "b") + theme(plot.title = element_text(size = tag_label_size, face="bold"))
-
-  p <- p1 + p2 + guide_area() + plot_layout(design=design, guides = "collect") & theme(plot.background = element_blank())
+  p <- p1 + p2 +
+    guide_area() +
+    plot_layout(design=design, guides = "collect") &
+    theme(plot.background = element_blank())
   p
 }
+
 
 plot_grl2023_fig1c_d <- function(x, legend_title = "MSSS") {
   rdbu_pal = RColorBrewer::brewer.pal(12, "RdBu")

@@ -23,10 +23,10 @@ if (exists("snakemake")) {
   snakemake@source("plotting.R")
 } else {
   ## FOR TESTING:
-  config = read_yaml('config/config_2.yml')
-  aggregation_period = "yr2"
+  config = read_yaml('config/config.yml')
+  aggregation_period = "yr2to5_lag"
   outputroot = 'results'
-  cwd = 'workflow/decadal-prediction-scripts/R'
+  cwd = 'workflow/scripts/R'
   source(file.path(cwd, "utils.R"))
   source(file.path(cwd, "plotting.R"))
 }
@@ -34,6 +34,8 @@ if (exists("snakemake")) {
 config[["modelling"]] <- parse_config_modelling(config)
 
 fig_dpi <- 600
+fig_pres_dpi <- 1200
+
 skill_measure <- "crpss"
 all_skill_measures <- c(
   "crps_fcst", "crps_ens_fcst",
@@ -245,10 +247,20 @@ pp2 <-
   )
 
 ## Now use cowplot to join the two parts
-p = plot_grid(pp1, pp2, nrow=2, align="v", rel_heights = c(1, 1.25))
+p <- plot_grid(pp1, pp2, nrow=2, align="v", rel_heights = c(1, 1.25))
 ggsave(
   file.path(output_dir, "fig1.png"),
-  plot = p, width = 6, height = 6.05, units = "in", dpi=fig_dpi
+  plot = p, width = 6, height = 6.05, units = "in", dpi = fig_dpi
+)
+
+## Second version for presentations
+pp1$patches$plots <- lapply(pp1$patches$plots, FUN=function(x) x + labs(title = " "))
+pp2$patches$plots <- lapply(pp2$patches$plots, FUN=function(x) x + labs(title = " "))
+
+p <- plot_grid(pp1, pp2, nrow=2, align="v", rel_heights = c(1, 1.25))
+ggsave(
+  file.path(output_dir, "fig1_pres.png"),
+  plot = p, width = 6, height = 6.05, units = "in", dpi = fig_pres_dpi
 )
 
 ## ####################################################### ##
@@ -259,7 +271,7 @@ ggsave(
 ## ####################################################### ##
 ## ####################################################### ##
 
-skill_scores_subset =
+skill_scores_subset <-
   skill_scores %>%
   filter(model %in% c("P", "PT")) %>%
   mutate(model = droplevels(model)) %>%
@@ -418,7 +430,15 @@ p <- p1 + p2 + p3 + p4 + plot_layout(design = design)
 
 ggsave(
   file.path(output_dir, "fig2.png"),
-  plot = p, width = 6, height = 5.6, units = "in", dpi=fig_dpi
+  plot = p, width = 6, height = 5.6, units = "in", dpi = fig_dpi
+)
+
+## Second version for presentations
+p$patches$plots <- lapply(p$patches$plots, FUN=function(x) x + labs(title = " "))
+p <- p + labs(title = " ")
+ggsave(
+  file.path(output_dir, "fig2_pres.png"),
+  plot = p, width = 6, height = 5.6, units = "in", dpi = fig_pres_dpi
 )
 
 ## ####################################################### ##
@@ -607,7 +627,15 @@ p <-
 
 ggsave(
   file.path(output_dir, "fig3.png"),
-  plot = p, width = 6, height = 4.25, units = "in", dpi=fig_dpi
+  plot = p, width = 6, height = 4.25, units = "in", dpi = fig_dpi
+)
+
+## Second version for presentations
+## p$patches$plots <- lapply(p$patches$plots, FUN=function(x) x + labs(title = " "))
+## p <- p + labs(title = " ")
+ggsave(
+  file.path(output_dir, "fig3_pres.png"),
+  plot = p, width = 6, height = 4.25, units = "in", dpi = fig_pres_dpi
 )
 
 ## ####################################################### ##
@@ -645,7 +673,15 @@ x <- skill_scores_subset %>%
 p <- plot_grl2023_fig4(x)
 ggsave(
   file.path(output_dir, "fig4.png"),
-  plot = p, width = 5, height = 5, units = "in", dpi=fig_dpi
+  plot = p, width = 5, height = 5, units = "in", dpi = fig_dpi
+)
+
+## Second version for presentations
+## p$patches$plots <- lapply(p$patches$plots, FUN=function(x) x + labs(title = " "))
+## p <- p + labs(title = " ")
+ggsave(
+  file.path(output_dir, "fig4_pres.png"),
+  plot = p, width = 5, height = 5, units = "in", dpi = fig_pres_dpi
 )
 
 ## ####################################################### ##
@@ -1181,6 +1217,14 @@ p <- p + plot_layout(guides = "collect")
 ggsave(
   file.path(output_dir, "figS3.png"),
   plot = p, width = 6, height = 6, units = "in", dpi=fig_dpi
+)
+
+## Second version for presentations
+p$patches$plots <- lapply(p$patches$plots, FUN=function(x) x + labs(title = " "))
+p <- p + labs(title = " ")
+ggsave(
+  file.path(output_dir, "figS3_pres.png"),
+  plot = p, width = 6, height = 6, units = "in", dpi = fig_pres_dpi
 )
 
 ## ####################################################### ##
